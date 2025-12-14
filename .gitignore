@@ -29,6 +29,7 @@ wheels/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
@@ -39,4 +40,7 @@ Thumbs.db
 
 # MCP config with API keys
 mcp.json
+
+
+
 

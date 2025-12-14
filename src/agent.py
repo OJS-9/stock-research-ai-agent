@@ -4,12 +4,19 @@ OpenAI Agents SDK agent setup with MCP integration.
 
 import os
 import json
+import re
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 
-from src.mcp_manager import MCPManager
-from src.research_prompt import get_system_instructions, get_followup_question_prompt
-from src.mcp_tools import get_openai_function_definitions, execute_tool_by_name
+from agents import Agent, Runner, Tool, trace, ModelSettings
+
+from mcp_manager import MCPManager
+from research_prompt import get_system_instructions, get_followup_question_prompt
+from agent_tools import create_all_tools
+from research_orchestrator import ResearchOrchestrator
+from synthesis_agent import SynthesisAgent
+from report_storage import ReportStorage
+from report_chat_agent import ReportChatAgent
 
 # Load environment variables
 load_dotenv()
@@ -33,26 +40,60 @@ class StockResearchAgent:
         self.agent = None
         self.conversation_history: List[Dict[str, str]] = []
         self.use_fallback = False
+        self.current_ticker: Optional[str] = None
+        self.current_trade_type: Optional[str] = None
+        self.current_report_id: Optional[str] = None
+        self.research_orchestrator = ResearchOrchestrator(api_key=self.api_key)
+        self.synthesis_agent = SynthesisAgent(api_key=self.api_key)
+        self.report_storage = ReportStorage()
+        self.chat_agent = ReportChatAgent(api_key=self.api_key)
         
         # Initialize the agent
         self._initialize_agent()
     
     def _initialize_agent(self):
-        """Initialize the agent with MCP connection."""
-        from openai import OpenAI
-        self.client = OpenAI(api_key=self.api_key)
-        self.model = "gpt-4o"
-        
-        # Get MCP client and tools
+        """Initialize the agent with MCP connection and Perplexity client using Agents SDK."""
+        # Get MCP client
         try:
-            mcp_client = self.mcp_manager.get_mcp_client()
-            self.mcp_tools = get_openai_function_definitions(mcp_client)
-            self.mcp_client = mcp_client
-            print(f"✓ Loaded {len(self.mcp_tools)} MCP tools")
+            self.mcp_client = self.mcp_manager.get_mcp_client()
+            print(f"✓ Connected to MCP server")
         except Exception as e:
-            print(f"Warning: Could not initialize MCP tools: {e}")
-            self.mcp_tools = []
+            print(f"Warning: Could not initialize MCP client: {e}")
             self.mcp_client = None
+        
+        # Initialize Perplexity client
+        try:
+            from perplexity_client import PerplexityClient
+            
+            self.perplexity_client = PerplexityClient()
+            print("✓ Loaded Perplexity client")
+        except ValueError as e:
+            # Graceful fallback if Perplexity API key not set
+            print(f"Info: Perplexity API not configured ({e}). Continuing with Alpha Vantage tools only.")
+            self.perplexity_client = None
+        except Exception as e:
+            print(f"Warning: Could not initialize Perplexity client: {e}")
+            self.perplexity_client = None
+        
+        # Create all tools using Agents SDK format
+        try:
+            all_tools = create_all_tools(self.mcp_client, self.perplexity_client)
+            print(f"✓ Loaded {len(all_tools)} tools for Agents SDK")
+        except Exception as e:
+            print(f"Warning: Could not create tools: {e}")
+            all_tools = []
+        
+        # Create Agent instance with Agents SDK
+        # Instructions will be set per-run via system message
+        self.agent = Agent(
+            name="Stock Research Agent",
+            instructions="You are a helpful stock research assistant. Use available tools to gather financial data and research information.",
+            model="gpt-4o",
+            tools=all_tools,
+            model_settings=ModelSettings(temperature=0.7)
+        )
+        
+        # Runner is used as a class with static methods, no instance needed
     
     def start_research(self, ticker: str, trade_type: str) -> str:
         """
@@ -65,6 +106,9 @@ class StockResearchAgent:
         Returns:
             Initial response from the agent (may include follow-up questions)
         """
+        self.current_ticker = ticker.upper()
+        self.current_trade_type = trade_type
+        
         # Get system instructions
         system_instructions = get_system_instructions(ticker, trade_type)
         
@@ -77,7 +121,7 @@ class StockResearchAgent:
             {"role": "user", "content": user_message}
         ]
         
-        # Get agent response
+        # Get agent response (may ask followup questions)
         response = self._get_agent_response(user_message, system_instructions)
         
         return response
@@ -122,7 +166,7 @@ class StockResearchAgent:
     
     def _get_response_with_tools(self, user_message: str, system_instructions: str) -> str:
         """
-        Get agent response with MCP tool calling support.
+        Get agent response with MCP tool calling support using Agents SDK.
         
         Args:
             user_message: Current user message
@@ -131,145 +175,195 @@ class StockResearchAgent:
         Returns:
             Agent's response
         """
-        # Build messages for API call
-        messages = [
-            {"role": "system", "content": system_instructions},
-        ]
-        
-        # Add conversation history (last few messages for context)
-        for msg in self.conversation_history[-10:]:  # Keep last 10 messages
-            if msg["role"] != "system":
-                messages.append(msg)
-        
-        # Add current user message if not already in history
-        if not any(msg.get("content") == user_message for msg in messages):
-            messages.append({"role": "user", "content": user_message})
-        
-        max_iterations = 5  # Prevent infinite loops
-        iteration = 0
-        
-        while iteration < max_iterations:
-            try:
-                # Prepare tools for API call
-                tools = self.mcp_tools if self.mcp_tools else None
-                
-                response = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools,
-                    tool_choice="auto",  # Let the model decide when to use tools
-                    temperature=0.7,
-                )
-                
-                message = response.choices[0].message
-                
-                # Add assistant message to conversation
-                messages.append({
-                    "role": "assistant",
-                    "content": message.content,
-                    "tool_calls": message.tool_calls if hasattr(message, 'tool_calls') and message.tool_calls else None
-                })
-                
-                # Check if the model wants to call a tool
-                if message.tool_calls:
-                    # Execute tool calls
-                    for tool_call in message.tool_calls:
-                        function_name = tool_call.function.name
-                        function_args = json.loads(tool_call.function.arguments)
-                        
-                        # Execute the MCP tool
-                        try:
-                            if self.mcp_client:
-                                tool_result = execute_tool_by_name(
-                                    self.mcp_client,
-                                    function_name,
-                                    function_args
-                                )
-                                
-                                # Format tool result for the model
-                                tool_result_str = json.dumps(tool_result, indent=2)
-                                
-                                # Add tool result to messages
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": function_name,
-                                    "content": tool_result_str
-                                })
-                            else:
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": function_name,
-                                    "content": "Error: MCP client not available"
-                                })
-                        except Exception as e:
-                            error_msg = f"Error executing tool {function_name}: {str(e)}"
-                            messages.append({
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "name": function_name,
-                                "content": error_msg
-                            })
-                    
-                    # Continue the conversation to get final response
-                    iteration += 1
-                    continue
-                else:
-                    # No tool calls, return the final response
-                    assistant_message = message.content or "I've completed the analysis."
-                    self.conversation_history.append({"role": "assistant", "content": assistant_message})
-                    return assistant_message
-                    
-            except Exception as e:
-                return f"Error generating response: {str(e)}"
-        
-        # If we've exhausted iterations, return the last message
-        return messages[-1].get("content", "I've completed the analysis using the available data.")
-    
-    def _get_fallback_response(self, user_message: str, system_instructions: str) -> str:
-        """
-        Fallback response using OpenAI API directly.
-        
-        Args:
-            user_message: Current user message
-            system_instructions: System instructions
-        
-        Returns:
-            Agent's response
-        """
-        # Build messages for API call
-        messages = [
-            {"role": "system", "content": system_instructions},
-        ]
-        
-        # Add conversation history (last few messages for context)
-        for msg in self.conversation_history[-10:]:  # Keep last 10 messages
-            if msg["role"] != "system":
-                messages.append(msg)
-        
-        # Add current user message if not already in history
-        if not any(msg.get("content") == user_message for msg in messages):
-            messages.append({"role": "user", "content": user_message})
+        if not self.agent:
+            return "Error: Agent not initialized. Please check your configuration."
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=0.7,
+            # Build messages for Runner
+            # Agents SDK Runner accepts a list of messages or a single message string
+            # We'll pass the user message and let the agent use system instructions
+            
+            # Update agent instructions with system instructions for this run
+            # Note: We'll pass system message as part of the conversation
+            messages = []
+            
+            # Add conversation history (excluding system messages, as we'll set instructions separately)
+            for msg in self.conversation_history[-10:]:  # Keep last 10 messages
+                if msg["role"] != "system":
+                    messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
+            
+            # Add current user message
+            messages.append({
+                "role": "user",
+                "content": user_message
+            })
+            
+            # Update agent instructions with system instructions
+            # We'll create a temporary agent with updated instructions
+            agent_with_instructions = Agent(
+                name=self.agent.name,
+                instructions=system_instructions,
+                model=self.agent.model,
+                tools=self.agent.tools,
+                model_settings=self.agent.model_settings
             )
             
-            assistant_message = response.choices[0].message.content
+            # Wrap execution with trace for monitoring
+            with trace("Stock Research Agent Run", metadata={
+                "ticker": self._extract_ticker_from_history(),
+                "trade_type": self._extract_trade_type_from_history()
+            }):
+                # Run agent with Runner
+                result = Runner.run_sync(
+                    agent_with_instructions,
+                    messages if len(messages) > 1 else user_message,
+                    max_turns=10  # Prevent infinite loops
+                )
+            
+            # Extract final output from result
+            if hasattr(result, 'final_output'):
+                assistant_message = result.final_output
+            elif hasattr(result, 'output'):
+                assistant_message = result.output
+            elif isinstance(result, str):
+                assistant_message = result
+            else:
+                assistant_message = str(result)
+            
+            # Update conversation history
             self.conversation_history.append({"role": "assistant", "content": assistant_message})
             
             return assistant_message
             
         except Exception as e:
-            return f"Error generating response: {str(e)}"
+            error_msg = f"Error generating response: {str(e)}"
+            print(f"Agent execution error: {e}")
+            return error_msg
+    
+    def _extract_ticker_from_history(self) -> str:
+        """Extract ticker from conversation history if available."""
+        for msg in self.conversation_history:
+            if msg["role"] == "system" and "ticker" in msg.get("content", "").lower():
+                # Try to extract ticker from system message
+                content = msg.get("content", "")
+                # Simple extraction - look for patterns like "AAPL" or "ticker: AAPL"
+                match = re.search(r'\b([A-Z]{1,5})\b', content)
+                if match:
+                    return match.group(1)
+        return "unknown"
+    
+    def _extract_trade_type_from_history(self) -> str:
+        """Extract trade type from conversation history if available."""
+        for msg in self.conversation_history:
+            if msg["role"] == "system":
+                content = msg.get("content", "").lower()
+                if "day trade" in content:
+                    return "Day Trade"
+                elif "swing trade" in content:
+                    return "Swing Trade"
+                elif "investment" in content:
+                    return "Investment"
+        return "unknown"
+    
+    def generate_report(self, context: str = "") -> str:
+        """
+        Generate a research report using parallel agents after followup questions are answered.
+        
+        Args:
+            context: Additional context from followup questions
+        
+        Returns:
+            Generated report text and report_id
+        """
+        if not self.current_ticker or not self.current_trade_type:
+            return "Error: No active research session. Please start research first."
+        
+        ticker = self.current_ticker
+        trade_type = self.current_trade_type
+        
+        print(f"\n{'='*60}")
+        print(f"Starting parallel research for {ticker} ({trade_type})")
+        print(f"{'='*60}\n")
+        
+        try:
+            # Step 1: Run parallel research
+            research_outputs = self.research_orchestrator.run_parallel_research(
+                ticker=ticker,
+                trade_type=trade_type,
+                context=context
+            )
+            
+            # Step 2: Synthesize report
+            print(f"\n{'='*60}")
+            print("Synthesizing research findings into final report...")
+            print(f"{'='*60}\n")
+            
+            report_text = self.synthesis_agent.synthesize_report(
+                ticker=ticker,
+                trade_type=trade_type,
+                research_outputs=research_outputs,
+                context=context
+            )
+            
+            # Step 3: Store report with chunks and embeddings
+            print(f"\n{'='*60}")
+            print("Storing report with chunking and embeddings...")
+            print(f"{'='*60}\n")
+            
+            metadata = {
+                "trade_type": trade_type,
+                "research_subjects": list(research_outputs.keys()),
+                "context": context
+            }
+            
+            report_id = self.report_storage.store_report(
+                ticker=ticker,
+                trade_type=trade_type,
+                report_text=report_text,
+                metadata=metadata
+            )
+            
+            self.current_report_id = report_id
+            
+            print(f"\n{'='*60}")
+            print(f"✓ Report generated and stored: {report_id}")
+            print(f"{'='*60}\n")
+            
+            return report_text
+            
+        except Exception as e:
+            error_msg = f"Error generating report: {str(e)}"
+            print(error_msg)
+            return error_msg
+    
+    def chat_with_report(self, question: str) -> str:
+        """
+        Chat with the current report using RAG-lite.
+        
+        Args:
+            question: User's question about the report
+        
+        Returns:
+            Agent's answer based on report content
+        """
+        if not self.current_report_id:
+            return "Error: No report available. Please generate a report first."
+        
+        return self.chat_agent.chat_with_report(
+            report_id=self.current_report_id,
+            question=question
+        )
     
     def reset_conversation(self):
         """Reset the conversation history."""
         self.conversation_history = []
+        self.current_ticker = None
+        self.current_trade_type = None
+        self.current_report_id = None
+        self.chat_agent.reset_conversation()
 
 
 def create_agent(api_key: Optional[str] = None) -> StockResearchAgent:

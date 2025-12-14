@@ -7,7 +7,7 @@ import os
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
-from src.mcp_client import MCPClient, create_mcp_client
+from mcp_client import MCPClient, create_mcp_client
 
 
 class MCPManager:
