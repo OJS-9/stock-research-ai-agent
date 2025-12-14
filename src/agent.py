@@ -4,6 +4,7 @@ OpenAI Agents SDK agent setup with MCP integration.
 
 import os
 import json
+import asyncio
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 
@@ -38,7 +39,7 @@ class StockResearchAgent:
         self._initialize_agent()
     
     def _initialize_agent(self):
-        """Initialize the agent with MCP connection."""
+        """Initialize the agent with MCP connection and Perplexity client."""
         from openai import OpenAI
         self.client = OpenAI(api_key=self.api_key)
         self.model = "gpt-4o"
@@ -53,6 +54,29 @@ class StockResearchAgent:
             print(f"Warning: Could not initialize MCP tools: {e}")
             self.mcp_tools = []
             self.mcp_client = None
+        
+        # Initialize Perplexity client and tool
+        try:
+            from src.perplexity_client import PerplexityClient
+            from src.perplexity_tools import get_perplexity_research_function
+            
+            self.perplexity_client = PerplexityClient()
+            self.perplexity_tool = get_perplexity_research_function()
+            print("✓ Loaded Perplexity research tool")
+        except ValueError as e:
+            # Graceful fallback if Perplexity API key not set
+            print(f"Info: Perplexity API not configured ({e}). Continuing with Alpha Vantage tools only.")
+            self.perplexity_client = None
+            self.perplexity_tool = None
+        except Exception as e:
+            print(f"Warning: Could not initialize Perplexity client: {e}")
+            self.perplexity_client = None
+            self.perplexity_tool = None
+        
+        # Combine all available tools
+        self.all_tools = self.mcp_tools.copy()
+        if self.perplexity_tool:
+            self.all_tools.append(self.perplexity_tool)
     
     def start_research(self, ticker: str, trade_type: str) -> str:
         """
@@ -150,8 +174,8 @@ class StockResearchAgent:
         
         while iteration < max_iterations:
             try:
-                # Prepare tools for API call
-                tools = self.mcp_tools if self.mcp_tools else None
+                # Prepare tools for API call (use all_tools which includes both MCP and Perplexity)
+                tools = self.all_tools if self.all_tools else None
                 
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -174,41 +198,23 @@ class StockResearchAgent:
                 if message.tool_calls:
                     # Execute tool calls
                     for tool_call in message.tool_calls:
-                        function_name = tool_call.function.name
-                        function_args = json.loads(tool_call.function.arguments)
-                        
-                        # Execute the MCP tool
                         try:
-                            if self.mcp_client:
-                                tool_result = execute_tool_by_name(
-                                    self.mcp_client,
-                                    function_name,
-                                    function_args
-                                )
-                                
-                                # Format tool result for the model
-                                tool_result_str = json.dumps(tool_result, indent=2)
-                                
-                                # Add tool result to messages
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": function_name,
-                                    "content": tool_result_str
-                                })
-                            else:
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tool_call.id,
-                                    "name": function_name,
-                                    "content": "Error: MCP client not available"
-                                })
-                        except Exception as e:
-                            error_msg = f"Error executing tool {function_name}: {str(e)}"
+                            # Execute tool call (routes to appropriate handler)
+                            tool_result_str = self._execute_tool_call(tool_call)
+                            
+                            # Add tool result to messages
                             messages.append({
                                 "role": "tool",
                                 "tool_call_id": tool_call.id,
-                                "name": function_name,
+                                "name": tool_call.function.name,
+                                "content": tool_result_str
+                            })
+                        except Exception as e:
+                            error_msg = f"Error executing tool {tool_call.function.name}: {str(e)}"
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tool_call.id,
+                                "name": tool_call.function.name,
                                 "content": error_msg
                             })
                     
@@ -226,6 +232,67 @@ class StockResearchAgent:
         
         # If we've exhausted iterations, return the last message
         return messages[-1].get("content", "I've completed the analysis using the available data.")
+    
+    def _execute_tool_call(self, tool_call) -> str:
+        """
+        Execute a tool call, routing to appropriate handler (MCP or Perplexity).
+        
+        Args:
+            tool_call: Tool call object from OpenAI API
+        
+        Returns:
+            JSON string of tool result
+        """
+        function_name = tool_call.function.name
+        function_args = json.loads(tool_call.function.arguments)
+        
+        # Route to Perplexity research tool
+        if function_name == "perplexity_research":
+            if not self.perplexity_client:
+                return json.dumps({
+                    "error": "Perplexity API not configured",
+                    "message": "Perplexity research is not available. Please set PERPLEXITY_API_KEY environment variable."
+                }, indent=2)
+            
+            try:
+                from src.perplexity_tools import execute_perplexity_research
+                
+                # Execute async Perplexity research using asyncio.run()
+                result = asyncio.run(execute_perplexity_research(
+                    self.perplexity_client,
+                    query=function_args["query"],
+                    focus=function_args.get("focus", "general")
+                ))
+                
+                return json.dumps(result, indent=2)
+            except Exception as e:
+                return json.dumps({
+                    "error": f"Perplexity research failed: {str(e)}",
+                    "query": function_args.get("query", ""),
+                    "status": "error"
+                }, indent=2)
+        
+        # Route to MCP tools (existing logic)
+        else:
+            if not self.mcp_client:
+                return json.dumps({
+                    "error": "MCP client not available",
+                    "message": f"Cannot execute tool {function_name}: MCP client is not initialized."
+                }, indent=2)
+            
+            try:
+                tool_result = execute_tool_by_name(
+                    self.mcp_client,
+                    function_name,
+                    function_args
+                )
+                return json.dumps(tool_result, indent=2)
+            except Exception as e:
+                return json.dumps({
+                    "error": f"Tool execution failed: {str(e)}",
+                    "tool": function_name,
+                    "status": "error"
+                }, indent=2)
     
     def _get_fallback_response(self, user_message: str, system_instructions: str) -> str:
         """

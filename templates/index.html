@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="instructions">
+    <h2>How to use:</h2>
+    <ol>
+        <li>Enter a stock ticker (e.g., AAPL, TSLA, MSFT)</li>
+        <li>Select your trade type (Day Trade, Swing Trade, or Investment)</li>
+        <li>Click "Start Research" to begin</li>
+        <li>Answer any follow-up questions the agent asks</li>
+        <li>Review the generated research report</li>
+    </ol>
+</div>
+
+<div class="main-layout">
+    <div class="form-section">
+        <div class="card">
+            <h2>Start Research</h2>
+            <form method="POST" action="{{ url_for('start_research') }}">
+                <div class="form-group">
+                    <label for="ticker">Stock Ticker</label>
+                    <input 
+                        type="text" 
+                        id="ticker" 
+                        name="ticker" 
+                        placeholder="e.g., AAPL, TSLA, MSFT"
+                        value="{{ current_ticker }}"
+                        required
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label>Trade Type</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input 
+                                type="radio" 
+                                name="trade_type" 
+                                value="Day Trade"
+                                {% if current_trade_type == 'Day Trade' %}checked{% endif %}
+                            >
+                            <span>Day Trade</span>
+                        </label>
+                        <label class="radio-label">
+                            <input 
+                                type="radio" 
+                                name="trade_type" 
+                                value="Swing Trade"
+                                {% if current_trade_type == 'Swing Trade' %}checked{% endif %}
+                            >
+                            <span>Swing Trade</span>
+                        </label>
+                        <label class="radio-label">
+                            <input 
+                                type="radio" 
+                                name="trade_type" 
+                                value="Investment"
+                                {% if current_trade_type == 'Investment' or not current_trade_type %}checked{% endif %}
+                            >
+                            <span>Investment</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Start Research</button>
+            </form>
+            
+            <div class="status-message">
+                {{ status_message }}
+            </div>
+        </div>
+    </div>
+    
+    <div class="conversation-section">
+        <div class="card">
+            <h2>Conversation</h2>
+            
+            <div class="conversation-display">
+                {% if conversation_history %}
+                    {% for message in conversation_history %}
+                        <div class="message message-{{ message.role }}">
+                            <strong class="message-role">{{ message.role|title }}:</strong>
+                            <div class="message-content">{{ message.content }}</div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="conversation-placeholder">
+                        Conversation will appear here...
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="conversation-actions">
+                <form method="POST" action="{{ url_for('continue_conversation') }}" class="response-form">
+                    <div class="form-group">
+                        <label for="user_response">Your Response</label>
+                        <textarea 
+                            id="user_response" 
+                            name="user_response" 
+                            placeholder="Type your response here..."
+                            rows="3"
+                        ></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-secondary">Send Response</button>
+                </form>
+                
+                <form method="POST" action="{{ url_for('clear_conversation') }}" class="clear-form">
+                    <button type="submit" class="btn btn-danger">Clear Conversation</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
