@@ -14,7 +14,7 @@ from typing import Tuple, Optional
 import os
 from dotenv import load_dotenv
 
-from src.agent import create_agent, StockResearchAgent
+from agent import create_agent, StockResearchAgent
 
 # Load environment variables
 load_dotenv()
@@ -115,6 +115,84 @@ def continue_conversation(user_input: str, conversation_history: str, session_id
         return conversation_history, error_msg
 
 
+def generate_report(conversation_history: str, session_id: str) -> Tuple[str, str, str]:
+    """
+    Generate research report after followup questions.
+    
+    Args:
+        conversation_history: Current conversation history
+        session_id: Session identifier
+    
+    Returns:
+        Tuple of (updated_conversation_history, status_message, report_id)
+    """
+    try:
+        agent = initialize_session(session_id)
+        
+        # Extract context from conversation
+        context = conversation_history if conversation_history else ""
+        
+        # Generate report
+        report_text = agent.generate_report(context=context)
+        report_id = agent.current_report_id or "unknown"
+        
+        # Update conversation history
+        updated_history = conversation_history
+        if updated_history:
+            updated_history += "\n\n"
+        updated_history += f"**Report Generated:**\n\n{report_text[:1000]}...\n\n[Full report stored. You can now chat with it in the Chat tab.]\n\n"
+        
+        status = f"✅ Report generated successfully! Report ID: {report_id[:8]}..."
+        
+        return updated_history, status, report_id
+        
+    except Exception as e:
+        error_msg = f"❌ Error generating report: {str(e)}"
+        return conversation_history, error_msg, ""
+
+
+def chat_with_report(question: str, chat_history: str, report_id: str, session_id: str) -> Tuple[str, str]:
+    """
+    Chat with a generated report.
+    
+    Args:
+        question: User's question
+        chat_history: Current chat history
+        report_id: Report ID
+        session_id: Session identifier
+    
+    Returns:
+        Tuple of (updated_chat_history, status_message)
+    """
+    if not question or not question.strip():
+        return chat_history, "⚠️ Please enter a question."
+    
+    if not report_id or report_id == "unknown":
+        return chat_history, "❌ No report available. Please generate a report first."
+    
+    try:
+        agent = initialize_session(session_id)
+        agent.current_report_id = report_id
+        
+        # Get answer
+        answer = agent.chat_with_report(question.strip())
+        
+        # Update chat history
+        updated_history = chat_history
+        if updated_history:
+            updated_history += "\n\n"
+        updated_history += f"**You:** {question}\n\n"
+        updated_history += f"**Agent:** {answer}\n\n"
+        
+        status = "✅ Answer received"
+        
+        return updated_history, status
+        
+    except Exception as e:
+        error_msg = f"❌ Error: {str(e)}"
+        return chat_history, error_msg
+
+
 def create_interface():
     """Create and configure the Gradio interface."""
     
@@ -134,54 +212,83 @@ def create_interface():
             2. Select your trade type (Day Trade, Swing Trade, or Investment)
             3. Click "Start Research" to begin
             4. Answer any follow-up questions the agent asks
-            5. Review the generated research report
+            5. Click "Generate Report" to create the research report
+            6. Use the Chat tab to ask questions about the generated report
             """
         )
         
-        with gr.Row():
-            with gr.Column(scale=1):
-                ticker_input = gr.Textbox(
-                    label="Stock Ticker",
-                    placeholder="e.g., AAPL, TSLA, MSFT",
-                    value=""
-                )
+        with gr.Tabs() as tabs:
+            with gr.Tab("Generate Report"):
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        ticker_input = gr.Textbox(
+                            label="Stock Ticker",
+                            placeholder="e.g., AAPL, TSLA, MSFT",
+                            value=""
+                        )
+                        
+                        trade_type = gr.Radio(
+                            choices=["Day Trade", "Swing Trade", "Investment"],
+                            label="Trade Type",
+                            value="Investment"
+                        )
+                        
+                        start_btn = gr.Button("Start Research", variant="primary", size="lg")
+                        generate_btn = gr.Button("Generate Report", variant="primary", size="lg")
+                        
+                        status_display = gr.Textbox(
+                            label="Status",
+                            interactive=False,
+                            value="Ready to start research..."
+                        )
+                    
+                    with gr.Column(scale=2):
+                        conversation = gr.Textbox(
+                            label="Conversation",
+                            lines=20,
+                            interactive=False,
+                            placeholder="Conversation will appear here..."
+                        )
+                        
+                        user_response = gr.Textbox(
+                            label="Your Response",
+                            placeholder="Type your response here...",
+                            lines=3
+                        )
+                        
+                        continue_btn = gr.Button("Send Response", variant="secondary")
+                        clear_btn = gr.Button("Clear Conversation", variant="stop")
                 
-                trade_type = gr.Radio(
-                    choices=["Day Trade", "Swing Trade", "Investment"],
-                    label="Trade Type",
-                    value="Investment"
-                )
-                
-                start_btn = gr.Button("Start Research", variant="primary", size="lg")
-                
-                status_display = gr.Textbox(
-                    label="Status",
-                    interactive=False,
-                    value="Ready to start research..."
-                )
+                # Hidden session ID and report ID
+                session_id = gr.State(value=default_session_id)
+                report_id_state = gr.State(value="")
             
-            with gr.Column(scale=2):
-                conversation = gr.Textbox(
-                    label="Conversation",
-                    lines=20,
+            with gr.Tab("Chat with Report"):
+                gr.Markdown("Ask questions about your generated report. The agent will answer based only on the report content.")
+                
+                report_id_display = gr.Textbox(
+                    label="Report ID",
                     interactive=False,
-                    placeholder="Conversation will appear here..."
+                    value="No report generated yet"
                 )
                 
-                user_response = gr.Textbox(
-                    label="Your Response",
-                    placeholder="Type your response here...",
+                chat_history = gr.Textbox(
+                    label="Chat History",
+                    lines=15,
+                    interactive=False,
+                    placeholder="Chat history will appear here..."
+                )
+                
+                chat_question = gr.Textbox(
+                    label="Your Question",
+                    placeholder="Ask a question about the report...",
                     lines=3
                 )
                 
-                continue_btn = gr.Button("Send Response", variant="secondary")
-                
-                clear_btn = gr.Button("Clear Conversation", variant="stop")
+                chat_btn = gr.Button("Ask Question", variant="primary")
+                clear_chat_btn = gr.Button("Clear Chat", variant="stop")
         
-        # Hidden session ID
-        session_id = gr.State(value=default_session_id)
-        
-        # Event handlers
+        # Event handlers for Generate Report tab
         start_btn.click(
             fn=start_research,
             inputs=[ticker_input, trade_type, session_id],
@@ -197,7 +304,6 @@ def create_interface():
             outputs=[user_response]
         )
         
-        # Allow Enter key to submit
         user_response.submit(
             fn=continue_conversation,
             inputs=[user_response, conversation, session_id],
@@ -207,15 +313,52 @@ def create_interface():
             outputs=[user_response]
         )
         
+        generate_btn.click(
+            fn=generate_report,
+            inputs=[conversation, session_id],
+            outputs=[conversation, status_display, report_id_state]
+        ).then(
+            fn=lambda rid: rid if rid else "No report generated yet",
+            inputs=[report_id_state],
+            outputs=[report_id_display]
+        )
+        
         clear_btn.click(
-            fn=lambda: ("", "Conversation cleared. Ready for new research."),
-            outputs=[conversation, status_display]
+            fn=lambda: ("", "Conversation cleared. Ready for new research.", ""),
+            outputs=[conversation, status_display, report_id_state]
+        ).then(
+            fn=lambda: "No report generated yet",
+            outputs=[report_id_display]
+        )
+        
+        # Event handlers for Chat tab
+        chat_btn.click(
+            fn=chat_with_report,
+            inputs=[chat_question, chat_history, report_id_state, session_id],
+            outputs=[chat_history, status_display]
+        ).then(
+            fn=lambda: "",
+            outputs=[chat_question]
+        )
+        
+        chat_question.submit(
+            fn=chat_with_report,
+            inputs=[chat_question, chat_history, report_id_state, session_id],
+            outputs=[chat_history, status_display]
+        ).then(
+            fn=lambda: "",
+            outputs=[chat_question]
+        )
+        
+        clear_chat_btn.click(
+            fn=lambda: ("", "Chat cleared."),
+            outputs=[chat_history, status_display]
         )
         
         gr.Markdown(
             """
             ---
-            **Note:** This agent uses Alpha Vantage MCP server for financial data. 
+            **Note:** This agent uses Alpha Vantage MCP server for financial data and OpenAI for embeddings. 
             Make sure you have configured your API keys in `.env` and `mcp.json` files.
             """
         )

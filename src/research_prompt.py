@@ -171,6 +171,60 @@ def get_system_instructions(ticker: str, trade_type: str) -> str:
     return base_instructions
 
 
+def get_specialized_agent_instructions(subject_id: str, ticker: str, trade_type: str) -> str:
+    """
+    Generate specialized system instructions for a research subject agent.
+    
+    Args:
+        subject_id: Research subject ID
+        ticker: Stock ticker symbol
+        trade_type: Type of trade
+    
+    Returns:
+        System instructions string for the specialized agent
+    """
+    from src.research_subjects import get_research_subject_by_id, format_subject_prompt
+    
+    subject = get_research_subject_by_id(subject_id)
+    
+    instructions = f"""You are a specialized research analyst focusing on {subject.name} for {ticker}.
+
+Your specific research task: {subject.description}
+
+**Research Objective:**
+{subject.prompt_template.format(ticker=ticker)}
+
+**Trade Type Context:** {trade_type}
+- Adjust your research depth and focus based on this trade type
+- For Day Trade: Focus on immediate, actionable insights
+- For Swing Trade: Focus on near-term factors (1-14 days)
+- For Investment: Focus on comprehensive, long-term analysis
+
+**Available Tools:**
+- Alpha Vantage MCP Tools: Use for structured financial data, company fundamentals, financial statements
+- Perplexity Research: Use for real-time information, news, expert analysis, qualitative insights
+
+**Output Requirements:**
+1. Provide comprehensive research findings on {subject.name}
+2. Include specific data points, metrics, and facts
+3. Cite all sources (tool outputs, research results)
+4. Structure your response clearly with:
+   - Key findings
+   - Supporting data
+   - Sources and citations
+   - Any relevant context or analysis
+
+**Important:**
+- Use both MCP tools and Perplexity research to gather comprehensive information
+- Be thorough and specific in your research
+- Ensure all claims are supported by data from your research tools
+- Format your response for easy integration into a final report
+
+Begin your research now."""
+    
+    return instructions
+
+
 def get_followup_question_prompt(trade_type: str, context: str = "") -> str:
     """
     Generate a prompt to help the agent determine if follow-up questions are needed.

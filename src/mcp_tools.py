@@ -4,7 +4,7 @@ Provides Python functions that wrap MCP tool calls and OpenAI function definitio
 """
 
 from typing import Dict, Any, List, Optional
-from src.mcp_client import MCPClient
+from mcp_client import MCPClient
 
 
 def get_openai_function_definitions(mcp_client: MCPClient) -> List[Dict[str, Any]]:
@@ -191,6 +191,9 @@ def execute_tool_by_name(mcp_client: MCPClient, function_name: str, arguments: D
     else:
         # Generic tool call
         return mcp_client.call_tool(mcp_tool_name, arguments)
+
+
+
 
 
 

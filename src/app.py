@@ -14,7 +14,7 @@ import os
 from dotenv import load_dotenv
 import uuid
 
-from src.agent import create_agent, StockResearchAgent
+from agent import create_agent, StockResearchAgent
 
 # Load environment variables
 load_dotenv()
@@ -145,6 +145,81 @@ def continue_conversation():
         # Update session
         session['conversation_history'] = conversation_history
         session['status_message'] = '✅ Response received'
+        
+    except Exception as e:
+        session['status_message'] = f'❌ Error: {str(e)}'
+    
+    return redirect(url_for('index'))
+
+
+@app.route('/generate_report', methods=['POST'])
+def generate_report():
+    """Handle form submission to generate report after followup questions."""
+    try:
+        session_id = get_or_create_session_id()
+        agent = initialize_session(session_id)
+        
+        # Extract context from conversation history
+        conversation_history = session.get('conversation_history', [])
+        context = ""
+        for msg in conversation_history:
+            if msg.get('role') == 'user':
+                context += f"User: {msg.get('content', '')}\n"
+        
+        # Generate report
+        session['status_message'] = '🔄 Generating report... This may take a few minutes.'
+        session['conversation_history'] = conversation_history  # Preserve history
+        session.modified = True
+        
+        report_text = agent.generate_report(context=context)
+        report_id = agent.current_report_id
+        
+        # Store report in session
+        session['current_report_id'] = report_id
+        session['report_text'] = report_text
+        session['status_message'] = f'✅ Report generated successfully! Report ID: {report_id[:8]}...'
+        
+        # Add report to conversation
+        conversation_history.append({
+            "role": "assistant",
+            "content": f"Report Generated:\n\n{report_text[:500]}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
+        })
+        session['conversation_history'] = conversation_history
+        
+    except Exception as e:
+        session['status_message'] = f'❌ Error generating report: {str(e)}'
+    
+    return redirect(url_for('index'))
+
+
+@app.route('/chat_report', methods=['POST'])
+def chat_report():
+    """Handle form submission to chat with report."""
+    question = request.form.get('chat_question', '').strip()
+    
+    # Validate input
+    if not question:
+        session['status_message'] = '⚠️ Please enter a question.'
+        return redirect(url_for('index'))
+    
+    if 'current_report_id' not in session:
+        session['status_message'] = '❌ No report available. Please generate a report first.'
+        return redirect(url_for('index'))
+    
+    try:
+        session_id = get_or_create_session_id()
+        agent = initialize_session(session_id)
+        agent.current_report_id = session.get('current_report_id')
+        
+        # Get answer from chat agent
+        answer = agent.chat_with_report(question)
+        
+        # Update chat history in session
+        chat_history = session.get('chat_history', [])
+        chat_history.append({"role": "user", "content": question})
+        chat_history.append({"role": "assistant", "content": answer})
+        session['chat_history'] = chat_history
+        session['status_message'] = '✅ Answer received'
         
     except Exception as e:
         session['status_message'] = f'❌ Error: {str(e)}'

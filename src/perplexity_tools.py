@@ -4,7 +4,7 @@ Provides function definitions and execution handlers for Perplexity Sonar API.
 """
 
 from typing import Dict, Any, Optional
-from src.perplexity_client import PerplexityClient
+from perplexity_client import PerplexityClient
 
 
 def get_perplexity_research_function() -> Dict[str, Any]:
