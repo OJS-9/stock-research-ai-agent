@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import os
 from dotenv import load_dotenv
 import uuid
@@ -136,16 +136,81 @@ def start_research():
 @app.route('/continue', methods=['POST'])
 def continue_conversation():
     """Handle form submission to continue conversation."""
+    # #region agent log
+    log_path = '/Users/orsalinas/projects/Stock Protfolio Agent/.cursor/debug.log'
+    import json
+    from datetime import datetime
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "C",
+                "location": "app.py:continue_conversation:entry",
+                "message": "Route entry - checking request data",
+                "data": {
+                    "form_keys": list(request.form.keys()),
+                    "user_response_raw": request.form.get('user_response', 'NOT_FOUND'),
+                    "is_ajax": request.headers.get('X-Requested-With') == 'XMLHttpRequest',
+                    "content_type": request.content_type
+                },
+                "timestamp": int(datetime.now().timestamp() * 1000)
+            }) + '\n')
+    except: pass
+    # #endregion
+    
     user_input = request.form.get('user_response', '').strip()
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    
+    # #region agent log
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "C",
+                "location": "app.py:continue_conversation:after_get",
+                "message": "After getting user_input",
+                "data": {
+                    "user_input": user_input,
+                    "user_input_length": len(user_input),
+                    "is_empty": not user_input
+                },
+                "timestamp": int(datetime.now().timestamp() * 1000)
+            }) + '\n')
+    except: pass
+    # #endregion
     
     # Validate input
     if not user_input:
+        # #region agent log
+        try:
+            with open(log_path, 'a') as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "C",
+                    "location": "app.py:continue_conversation:validation_failed",
+                    "message": "Validation failed - empty input",
+                    "data": {
+                        "is_ajax": is_ajax,
+                        "user_input": user_input
+                    },
+                    "timestamp": int(datetime.now().timestamp() * 1000)
+                }) + '\n')
+        except: pass
+        # #endregion
+        if is_ajax:
+            return jsonify({'success': False, 'error': '⚠️ Please enter a response.'}), 400
         session['status_message'] = '⚠️ Please enter a response.'
         return redirect(url_for('chat'))
     
     try:
         session_id = get_or_create_session_id()
         agent = initialize_session(session_id)
+        
+        # Store previous report_id to detect if a new report was generated
+        previous_report_id = session.get('current_report_id')
         
         # Get agent response
         response = agent.continue_conversation(user_input)
@@ -157,11 +222,42 @@ def continue_conversation():
         conversation_history.append({"role": "user", "content": user_input})
         conversation_history.append({"role": "assistant", "content": response})
         
+        # Check if a report was generated during this conversation turn
+        current_report_id = agent.current_report_id
+        report_generated = False
+        report_preview = None
+        
+        if current_report_id and current_report_id != previous_report_id:
+            # A new report was generated - get report text from agent and add preview to conversation
+            report_text = getattr(agent, 'last_report_text', None) or session.get('report_text', '')
+            if report_text:
+                report_preview = f"Report Generated:\n\n{report_text[:500] if report_text else 'No report content'}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
+                conversation_history.append({
+                    "role": "assistant",
+                    "content": report_preview
+                })
+                session['current_report_id'] = current_report_id
+                session['report_text'] = report_text
+                report_generated = True
+        
         # Update session
         session['conversation_history'] = conversation_history
         session['status_message'] = '✅ Response received'
         
+        # If AJAX request, return JSON
+        if is_ajax:
+            return jsonify({
+                'success': True,
+                'user_message': user_input,
+                'assistant_message': response,
+                'conversation_history': conversation_history,
+                'report_generated': report_generated,
+                'report_preview': report_preview
+            })
+        
     except Exception as e:
+        if is_ajax:
+            return jsonify({'success': False, 'error': f'❌ Error: {str(e)}'}), 500
         session['status_message'] = f'❌ Error: {str(e)}'
     
     return redirect(url_for('chat'))
@@ -195,16 +291,17 @@ def generate_report():
         session['status_message'] = f'✅ Report generated successfully! Report ID: {report_id[:8]}...'
         
         # Add report to conversation
+        report_preview = f"Report Generated:\n\n{report_text[:500] if report_text else 'No report content'}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
         conversation_history.append({
             "role": "assistant",
-            "content": f"Report Generated:\n\n{report_text[:500]}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
+            "content": report_preview
         })
         session['conversation_history'] = conversation_history
         
     except Exception as e:
         session['status_message'] = f'❌ Error generating report: {str(e)}'
     
-    return redirect(url_for('index'))
+    return redirect(url_for('chat'))
 
 
 @app.route('/chat_report', methods=['POST'])

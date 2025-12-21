@@ -11,6 +11,12 @@ from agents import Agent, Runner, trace, ModelSettings
 
 load_dotenv()
 
+# Maximum output tokens for synthesis agent (configurable via env)
+# Higher limit needed since synthesis agent integrates multiple specialized research outputs
+SYNTHESIS_AGENT_MAX_OUTPUT_TOKENS = int(
+    os.getenv("SYNTHESIS_AGENT_MAX_OUTPUT_TOKENS", "8000")
+)
+
 
 class SynthesisAgent:
     """Agent that synthesizes multiple research outputs into a comprehensive report."""
@@ -59,7 +65,10 @@ class SynthesisAgent:
             instructions=self._get_synthesis_instructions(ticker, trade_type),
             model="gpt-4o",
             tools=[],  # Synthesis agent doesn't need tools, it works with provided data
-            model_settings=ModelSettings(temperature=0.7)
+            model_settings=ModelSettings(
+                temperature=0.7,
+                max_output_tokens=SYNTHESIS_AGENT_MAX_OUTPUT_TOKENS
+            )
         )
         
         # Execute synthesis
@@ -109,40 +118,52 @@ class SynthesisAgent:
         return f"""You are a senior equity research analyst synthesizing specialized research findings into a comprehensive business model report for {ticker}.
 
 **Your Task:**
-Consolidate research findings from multiple specialized research agents into a cohesive, well-structured business model report.
+Integrate and structure research findings from multiple specialized research agents into a comprehensive, detailed business model report. Your role is to PRESERVE and ORGANIZE all detailed information, NOT to summarize or condense it.
+
+**CRITICAL: Detail Preservation Requirements**
+- **PRESERVE ALL SPECIFIC DATA**: Include all metrics, numbers, percentages, dollar amounts, and quantitative data points from the research outputs
+- **PRESERVE ALL FACTS**: Include all specific facts, findings, and qualitative insights from specialized agents
+- **PRESERVE ALL EXAMPLES**: Include specific examples, case studies, and concrete details provided by research agents
+- **INTEGRATE, DON'T SUMMARIZE**: Your job is to integrate information into a structured format, not to condense or summarize away details
+- **MINIMUM DETAIL REQUIREMENTS**: Each major section should include at least 3-5 specific data points, metrics, or detailed facts from the research outputs
+- **INCLUDE DIRECT QUOTES**: When key metrics or critical findings are provided, include them directly with their exact values/statements
+- **CROSS-REFERENCE INFORMATION**: Where information from different research subjects relates to each other, make those connections explicit
 
 **Report Structure:**
-1. **Executive Summary** - Brief overview of the business model
-2. **Products and Services** - What the business offers
-3. **Revenue Breakdown** - Revenue by product, geography, and channel
-4. **Value Propositions and Key Clients** - Value propositions and customer relationships
-5. **Buying Process** - Who buys and how the buying process works
-6. **Seasonality** - Seasonal patterns and cyclicality
-7. **Margin Structure** - Margin structure by segment
-8. **Business Model Overview** - Integrated view of how the business operates
-9. **Sources and Citations** - All sources cited from the research
+1. **Executive Summary** - Comprehensive overview including key metrics and main findings
+2. **Products and Services** - Detailed description of all products/services with specific features, capabilities, and details
+3. **Revenue Breakdown** - Detailed revenue analysis with specific numbers, percentages, trends, and segment breakdowns
+4. **Value Propositions and Key Clients** - Detailed value propositions with specific examples, major clients, and customer relationship details
+5. **Buying Process** - Comprehensive description of the buying process with specific details about decision-makers, sales cycles, and procurement processes
+6. **Seasonality** - Detailed seasonal patterns with specific quarterly data, trends, and cyclical factors
+7. **Margin Structure** - Detailed margin analysis with specific percentages, trends, and segment-level profitability data
+8. **Business Model Overview** - Integrated view connecting all aspects with specific details and metrics
+9. **Sources and Citations** - All sources cited from the research with proper attribution
 
 **Trade Type Context:** {trade_type}
 - Adjust report depth and focus based on trade type
-- For Day Trade: Emphasize immediate, actionable insights
-- For Swing Trade: Emphasize near-term factors
-- For Investment: Provide comprehensive, long-term analysis
+- For Day Trade: Emphasize immediate, actionable insights while preserving all relevant details
+- For Swing Trade: Emphasize near-term factors while maintaining comprehensive detail
+- For Investment: Provide comprehensive, long-term analysis with full detail preservation
 
 **Guidelines:**
-- Integrate all research findings seamlessly
-- Maintain consistency across sections
-- Cite all sources from the research outputs
-- Highlight key insights and data points
-- Ensure the report maps the entire business model clearly
-- Use clear, professional language
-- Structure the report for easy reading and reference
+- **INTEGRATION OVER SUMMARIZATION**: Integrate all research findings seamlessly while preserving their depth and detail
+- **DATA POINT PRESERVATION**: Include specific numbers, percentages, dollar amounts, dates, and quantitative metrics from research outputs
+- **FACT PRESERVATION**: Include all specific facts, findings, examples, and qualitative insights
+- **STRUCTURE WITHOUT REDUCTION**: Organize information into the report structure without losing detail or condensing content
+- **CONNECTIONS AND CONTEXT**: Draw connections between different research subjects where relevant, using the detailed information provided
+- Maintain consistency across sections while preserving all unique details
+- Cite all sources from the research outputs with proper attribution
+- Use clear, professional language while maintaining comprehensive detail
+- Structure the report for easy reading and reference without sacrificing information density
 
 **Important:**
 - Only use information provided in the research outputs
 - Do not add information not present in the research findings
+- **DO NOT summarize away details** - preserve all specific metrics, numbers, and facts
 - Clearly cite sources for all claims
 - If information is missing for a section, note it clearly
-- Ensure the report is comprehensive and actionable"""
+- **Ensure the report is comprehensive, detailed, and fully utilizes all research findings**"""
     
     def _build_synthesis_prompt(
         self,
@@ -164,9 +185,24 @@ Consolidate research findings from multiple specialized research agents into a c
             Formatted synthesis prompt
         """
         prompt_parts = [
-            f"Synthesize the following specialized research findings into a comprehensive business model report for {ticker} ({trade_type}).",
+            f"**TASK: Synthesize specialized research findings into a comprehensive business model report for {ticker} ({trade_type})**",
             "",
-            "**Research Findings:**",
+            "**CRITICAL INSTRUCTIONS - READ CAREFULLY:**",
+            "",
+            f"The specialized research agents below have conducted detailed, in-depth research on different aspects of {ticker}'s business model. Each agent has provided comprehensive findings with specific data points, metrics, numbers, facts, and detailed analysis.",
+            "",
+            "**YOUR RESPONSIBILITY:**",
+            "- **PRESERVE ALL DETAILS**: Include ALL specific metrics, numbers, percentages, dollar amounts, dates, and quantitative data from each research output",
+            "- **PRESERVE ALL FACTS**: Include ALL specific facts, findings, examples, and qualitative insights from each research output",
+            "- **INTEGRATE, DON'T SUMMARIZE**: Your job is to integrate this detailed information into a well-structured report, NOT to condense or summarize away the details",
+            "- **USE ALL INFORMATION**: Fully utilize all the detailed research findings - specialized agents have done comprehensive work that should be preserved in the final report",
+            "- **MAINTAIN DEPTH**: Maintain the depth and specificity of analysis provided by the specialized research agents",
+            "- **INCLUDE SPECIFIC DATA**: Each section of your report should include specific data points, metrics, and detailed information - avoid high-level summaries",
+            "- **CROSS-REFERENCE**: Where information from different research subjects connects, make those relationships explicit using the detailed data provided",
+            "",
+            "The specialized agents have invested significant effort in gathering detailed information. Your synthesis should reflect and preserve this comprehensive research, not reduce it to bullet points or high-level summaries.",
+            "",
+            "**Research Findings from Specialized Agents:**",
             ""
         ]
         
@@ -176,14 +212,14 @@ Consolidate research findings from multiple specialized research agents into a c
             research_output = result.get("research_output", "No research output available")
             sources = result.get("sources", [])
             
-            prompt_parts.append(f"### {subject_name}")
+            prompt_parts.append(f"### {subject_name} - Detailed Research Output")
             prompt_parts.append("")
-            prompt_parts.append("Research Output:")
+            prompt_parts.append("**Comprehensive Research Findings (preserve all details from this output):**")
             prompt_parts.append(research_output)
             
             if sources:
                 prompt_parts.append("")
-                prompt_parts.append("Sources:")
+                prompt_parts.append("**Sources Used by This Research Agent:**")
                 for i, source in enumerate(sources, 1):
                     prompt_parts.append(f"{i}. {source}")
             
@@ -193,12 +229,22 @@ Consolidate research findings from multiple specialized research agents into a c
         
         if context:
             prompt_parts.append("")
-            prompt_parts.append("**Additional Context:**")
+            prompt_parts.append("**Additional Context from User:**")
             prompt_parts.append(context)
             prompt_parts.append("")
         
         prompt_parts.append("")
-        prompt_parts.append("Now synthesize all these findings into a comprehensive, well-structured business model report with all sources cited.")
+        prompt_parts.append("**FINAL INSTRUCTIONS:**")
+        prompt_parts.append("")
+        prompt_parts.append("Now create a comprehensive, detailed business model report that:")
+        prompt_parts.append("1. Integrates all the detailed research findings above into a well-structured format")
+        prompt_parts.append("2. Preserves ALL specific metrics, numbers, facts, and detailed information from each research output")
+        prompt_parts.append("3. Includes specific data points (percentages, dollar amounts, dates, quantities) throughout the report")
+        prompt_parts.append("4. Maintains the depth and comprehensiveness of the specialized research")
+        prompt_parts.append("5. Clearly cites all sources from the research outputs")
+        prompt_parts.append("6. Draws connections between different research subjects where relevant")
+        prompt_parts.append("")
+        prompt_parts.append("Remember: The goal is comprehensive integration of detailed information, NOT summarization or condensation. Use all the detailed findings provided by the specialized research agents.")
         
         return "\n".join(prompt_parts)
 
