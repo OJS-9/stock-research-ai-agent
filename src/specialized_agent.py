@@ -3,6 +3,7 @@ Specialized research agents for focused research on specific business model aspe
 """
 
 import os
+import time
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
@@ -13,6 +14,20 @@ from agent_tools import create_all_tools
 from research_subjects import ResearchSubject
 
 load_dotenv()
+
+# Maximum number of turns for specialized agent runs (configurable via env)
+SPECIALIZED_AGENT_MAX_TURNS = int(
+    os.getenv("SPECIALIZED_AGENT_MAX_TURNS", "8")
+)
+
+# Maximum output tokens for specialized agents (per subject run)
+SPECIALIZED_AGENT_MAX_OUTPUT_TOKENS = int(
+    os.getenv("SPECIALIZED_AGENT_MAX_OUTPUT_TOKENS", "1500")
+)
+
+SPECIALIZED_AGENT_DEBUG_TOKEN_LOG = os.getenv(
+    "SPECIALIZED_AGENT_DEBUG_TOKEN_LOG", "false"
+).lower() == "true"
 
 
 class SpecializedResearchAgent:
@@ -155,20 +170,30 @@ Begin your research now."""
             instructions=instructions,
             model="gpt-4o",
             tools=self.tools,
-            model_settings=ModelSettings(temperature=0.7)
+            model_settings=ModelSettings(
+                temperature=0.7,
+                max_output_tokens=SPECIALIZED_AGENT_MAX_OUTPUT_TOKENS,
+            ),
         )
         
         # Execute research
         try:
+            if SPECIALIZED_AGENT_DEBUG_TOKEN_LOG:
+                approx_input_chars = len(research_prompt)
+                print(
+                    f"[SpecializedAgent:{subject.id}] Approx input chars: "
+                    f"{approx_input_chars}"
+                )
+
             with trace(f"Specialized Research: {subject.name}", metadata={
                 "ticker": ticker,
                 "subject": subject.id,
                 "trade_type": trade_type
             }):
-                result = Runner.run_sync(
+                result = _run_specialized_agent_with_retry(
                     agent,
                     research_prompt,
-                    max_turns=15  # Allow more turns for thorough research
+                    max_turns=SPECIALIZED_AGENT_MAX_TURNS,
                 )
             
             # Extract output
@@ -180,16 +205,55 @@ Begin your research now."""
                 research_output = result
             else:
                 research_output = str(result)
+
+            if SPECIALIZED_AGENT_DEBUG_TOKEN_LOG:
+                approx_output_chars = len(str(research_output))
+                print(
+                    f"[SpecializedAgent:{subject.id}] Approx output chars: "
+                    f"{approx_output_chars}"
+                )
             
-            # Extract sources (tool invocations)
+            # Extract sources (tool invocations) - safely serialize to avoid ToolContext issues
             sources = []
-            if hasattr(result, 'tool_invocations'):
-                sources = result.tool_invocations
-            elif hasattr(result, 'steps'):
-                # Extract tool calls from steps
-                for step in result.steps:
-                    if hasattr(step, 'tool_calls'):
-                        sources.extend(step.tool_calls)
+            try:
+                if hasattr(result, 'tool_invocations'):
+                    # Safely convert tool_invocations to serializable format
+                    tool_invocations = result.tool_invocations
+                    if tool_invocations:
+                        for inv in tool_invocations:
+                            try:
+                                # Try to convert to dict/string representation
+                                if isinstance(inv, dict):
+                                    sources.append(inv)
+                                elif hasattr(inv, '__dict__'):
+                                    # Convert object to dict, skipping non-serializable fields
+                                    inv_dict = {k: str(v) for k, v in inv.__dict__.items() if not k.startswith('_')}
+                                    sources.append(inv_dict)
+                                else:
+                                    sources.append(str(inv))
+                            except Exception:
+                                # Skip this invocation if it can't be serialized
+                                sources.append({"tool": "unknown", "error": "Could not serialize invocation"})
+                elif hasattr(result, 'steps'):
+                    # Extract tool calls from steps
+                    for step in result.steps:
+                        if hasattr(step, 'tool_calls'):
+                            for tool_call in step.tool_calls:
+                                try:
+                                    if isinstance(tool_call, dict):
+                                        sources.append(tool_call)
+                                    elif hasattr(tool_call, '__dict__'):
+                                        tool_call_dict = {k: str(v) for k, v in tool_call.__dict__.items() if not k.startswith('_')}
+                                        sources.append(tool_call_dict)
+                                    else:
+                                        sources.append(str(tool_call))
+                                except Exception:
+                                    # Skip this tool call if it can't be serialized
+                                    sources.append({"tool": "unknown", "error": "Could not serialize tool call"})
+            except Exception as sources_err:
+                # If extracting sources fails, just log and continue with empty list
+                print(f"Warning: Could not extract tool sources: {sources_err}")
+                sources = []
             
             return {
                 "subject_id": subject.id,
@@ -212,4 +276,46 @@ Begin your research now."""
                 "trade_type": trade_type,
                 "error": str(e)
             }
+
+
+def _is_rate_limit_error(exc: Exception) -> bool:
+    """Heuristic check for OpenAI-style rate limit errors (429 / rate_limit)."""
+    status = getattr(exc, "status_code", None)
+    if status == 429:
+        return True
+    message = str(exc).lower()
+    return "rate limit" in message or "429" in message
+
+
+def _run_specialized_agent_with_retry(
+    agent: Agent,
+    prompt: str,
+    max_turns: int,
+) -> Any:
+    """
+    Run a specialized agent with a small retry/backoff loop for rate limit errors.
+    """
+    max_retries = int(os.getenv("AGENT_RATE_LIMIT_MAX_RETRIES", "3"))
+    base_delay = float(os.getenv("AGENT_RATE_LIMIT_BACKOFF_SECONDS", "2.0"))
+    last_exc: Optional[Exception] = None
+
+    for attempt in range(max_retries):
+        try:
+            return Runner.run_sync(agent, prompt, max_turns=max_turns)
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            is_rate_limit = _is_rate_limit_error(exc)
+            is_last_attempt = attempt == max_retries - 1
+            if not is_rate_limit or is_last_attempt:
+                raise
+            delay = base_delay * (2**attempt)
+            print(
+                f"[SpecializedAgent] Rate limit encountered, retrying in {delay:.1f}s "
+                f"(attempt {attempt + 1}/{max_retries})"
+            )
+            time.sleep(delay)
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Unknown error in _run_specialized_agent_with_retry")
 

@@ -57,20 +57,35 @@ def get_or_create_session_id():
 
 @app.route('/')
 def index():
-    """Render the main interface with current conversation state."""
+    """Render the main landing page."""
     # Initialize session ID if needed
     get_or_create_session_id()
     
-    # Get conversation history from session
-    conversation_history = session.get('conversation_history', [])
-    status_message = session.get('status_message', 'Ready to start research...')
+    # Get current values from session for form pre-filling
     current_ticker = session.get('current_ticker', '')
     current_trade_type = session.get('current_trade_type', 'Investment')
     
     return render_template(
         'index.html',
+        current_ticker=current_ticker,
+        current_trade_type=current_trade_type
+    )
+
+
+@app.route('/chat')
+def chat():
+    """Render the chat interface."""
+    # Initialize session ID if needed
+    get_or_create_session_id()
+    
+    # Get conversation history from session
+    conversation_history = session.get('conversation_history', [])
+    current_ticker = session.get('current_ticker', '')
+    current_trade_type = session.get('current_trade_type', 'Investment')
+    
+    return render_template(
+        'chat.html',
         conversation_history=conversation_history,
-        status_message=status_message,
         current_ticker=current_ticker,
         current_trade_type=current_trade_type
     )
@@ -115,7 +130,7 @@ def start_research():
         session['status_message'] = f'❌ Error: {str(e)}'
         session['conversation_history'] = []
     
-    return redirect(url_for('index'))
+    return redirect(url_for('chat'))
 
 
 @app.route('/continue', methods=['POST'])
@@ -126,7 +141,7 @@ def continue_conversation():
     # Validate input
     if not user_input:
         session['status_message'] = '⚠️ Please enter a response.'
-        return redirect(url_for('index'))
+        return redirect(url_for('chat'))
     
     try:
         session_id = get_or_create_session_id()
@@ -149,7 +164,7 @@ def continue_conversation():
     except Exception as e:
         session['status_message'] = f'❌ Error: {str(e)}'
     
-    return redirect(url_for('index'))
+    return redirect(url_for('chat'))
 
 
 @app.route('/generate_report', methods=['POST'])
@@ -243,7 +258,7 @@ def clear_conversation():
         except:
             pass
     
-    return redirect(url_for('index'))
+    return redirect(url_for('chat'))
 
 
 def main():

@@ -1,115 +1,327 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="instructions">
-    <h2>How to use:</h2>
-    <ol>
-        <li>Enter a stock ticker (e.g., AAPL, TSLA, MSFT)</li>
-        <li>Select your trade type (Day Trade, Swing Trade, or Investment)</li>
-        <li>Click "Start Research" to begin</li>
-        <li>Answer any follow-up questions the agent asks</li>
-        <li>Review the generated research report</li>
-    </ol>
-</div>
+<header class="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-b-stone-200 dark:border-b-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 sm:px-10 py-3">
+    <div class="flex items-center gap-4 text-stone-900 dark:text-white">
+        <div class="size-8 text-primary">
+            <svg class="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
+            </svg>
+        </div>
+        <h2 class="text-stone-900 dark:text-white text-xl font-bold leading-tight tracking-[-0.015em] font-display">StockIntel</h2>
+    </div>
+    <div class="hidden md:flex flex-1 justify-end gap-8">
+        <div class="flex items-center gap-9">
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="{{ url_for('index') }}">Markets</a>
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">News</a>
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Screener</a>
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Portfolio</a>
+        </div>
+        <div class="flex gap-2">
+            <button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-4 bg-primary text-[#0c0a09] text-sm font-bold leading-normal tracking-[0.015em] hover:brightness-110 transition-all">
+                <span class="truncate">Sign Up</span>
+            </button>
+            <button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-10 px-4 bg-stone-200 dark:bg-surface-dark text-stone-900 dark:text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-opacity-80 transition-all">
+                <span class="truncate">Login</span>
+            </button>
+        </div>
+    </div>
+    <div class="md:hidden text-white">
+        <span class="material-symbols-outlined cursor-pointer">menu</span>
+    </div>
+</header>
 
-<div class="main-layout">
-    <div class="form-section">
-        <div class="card">
-            <h2>Start Research</h2>
-            <form method="POST" action="{{ url_for('start_research') }}">
-                <div class="form-group">
-                    <label for="ticker">Stock Ticker</label>
-                    <input 
-                        type="text" 
-                        id="ticker" 
-                        name="ticker" 
-                        placeholder="e.g., AAPL, TSLA, MSFT"
-                        value="{{ current_ticker }}"
-                        required
-                    >
-                </div>
-                
-                <div class="form-group">
-                    <label>Trade Type</label>
-                    <div class="radio-group">
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
+<main class="flex-1 flex flex-col items-center w-full">
+    <div class="w-full max-w-[1280px] px-4 md:px-10 py-5">
+        <div class="@container">
+            <div class="@[480px]:p-4">
+                <div class="flex min-h-[480px] flex-col gap-6 bg-cover bg-center bg-no-repeat @[480px]:gap-8 rounded-2xl items-start justify-end px-4 pb-12 @[480px]:px-12 relative overflow-hidden hero-bg group" data-alt="Abstract financial market illustration with up and down trends">
+                    <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay"></div>
+                    <div class="relative z-10 flex flex-col gap-2 text-left max-w-2xl mt-auto">
+                        <h1 class="text-white text-4xl font-black leading-tight tracking-[-0.033em] @[480px]:text-6xl @[480px]:font-black @[480px]:leading-[1.1] @[480px]:tracking-[-0.033em] font-display">
+                            Understand the Market,<br/> Invest Smarter.
+                        </h1>
+                        <h2 class="text-stone-300 text-base font-body font-normal leading-relaxed @[480px]:text-xl @[480px]:font-normal max-w-lg">
+                            Real-time insights, simplified analytics, and powerful visualizations for the modern investor.
+                        </h2>
+                    </div>
+                    <div class="relative z-10 w-full max-w-2xl mt-6">
+                        <form method="POST" action="{{ url_for('start_research') }}" class="flex items-center gap-2 bg-white/10 dark:bg-surface-dark/90 backdrop-blur-md border border-white/20 dark:border-border-dark p-2 rounded-2xl shadow-2xl transition-all focus-within:ring-2 ring-primary/50 focus-within:bg-white/20 dark:focus-within:bg-surface-dark">
+                            <div class="flex items-center justify-center pl-4 text-stone-400">
+                                <span class="material-symbols-outlined text-2xl">search</span>
+                            </div>
+                            <div class="flex-1 flex flex-col justify-center h-12">
+                                <input 
+                                    aria-label="Stock Ticker" 
+                                    name="ticker"
+                                    id="ticker"
+                                    class="w-full bg-transparent border-none p-0 text-white placeholder:text-stone-400 focus:ring-0 text-lg font-bold font-display" 
+                                    placeholder="Search Ticker..." 
+                                    type="text"
+                                    value="{{ current_ticker }}"
+                                    required
+                                />
+                                <div class="hidden sm:flex gap-3 text-xs text-stone-400 font-mono mt-0.5">
+                                    <span>e.g. AAPL</span>
+                                    <span>NVDA</span>
+                                    <span>BTC-USD</span>
+                                </div>
+                            </div>
+                            <select 
                                 name="trade_type" 
-                                value="Day Trade"
-                                {% if current_trade_type == 'Day Trade' %}checked{% endif %}
+                                id="trade_type"
+                                class="h-12 px-4 bg-white/10 dark:bg-surface-dark/50 border border-white/20 dark:border-border-dark text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/50 focus:outline-none"
+                                required
                             >
-                            <span>Day Trade</span>
-                        </label>
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                name="trade_type" 
-                                value="Swing Trade"
-                                {% if current_trade_type == 'Swing Trade' %}checked{% endif %}
-                            >
-                            <span>Swing Trade</span>
-                        </label>
-                        <label class="radio-label">
-                            <input 
-                                type="radio" 
-                                name="trade_type" 
-                                value="Investment"
-                                {% if current_trade_type == 'Investment' or not current_trade_type %}checked{% endif %}
-                            >
-                            <span>Investment</span>
-                        </label>
+                                <option value="Investment" {% if current_trade_type == 'Investment' or not current_trade_type %}selected{% endif %}>Investment</option>
+                                <option value="Day Trade" {% if current_trade_type == 'Day Trade' %}selected{% endif %}>Day Trade</option>
+                                <option value="Swing Trade" {% if current_trade_type == 'Swing Trade' %}selected{% endif %}>Swing Trade</option>
+                            </select>
+                            <button class="h-12 px-6 bg-primary hover:bg-white text-surface-dark font-bold rounded-xl transition-all shadow-lg hover:scale-105 active:scale-95 text-base flex items-center gap-2" type="submit">
+                                Analyze <span class="material-symbols-outlined text-lg">arrow_forward</span>
+                            </button>
+                        </form>
                     </div>
                 </div>
-                
-                <button type="submit" class="btn btn-primary">Start Research</button>
-            </form>
-            
-            <div class="status-message">
-                {{ status_message }}
             </div>
         </div>
     </div>
-    
-    <div class="conversation-section">
-        <div class="card">
-            <h2>Conversation</h2>
-            
-            <div class="conversation-display">
-                {% if conversation_history %}
-                    {% for message in conversation_history %}
-                        <div class="message message-{{ message.role }}">
-                            <strong class="message-role">{{ message.role|title }}:</strong>
-                            <div class="message-content">{{ message.content }}</div>
+
+    <section class="w-full max-w-[1280px] px-4 md:px-10 py-8 flex flex-col gap-8">
+        <div class="flex items-center justify-between px-2">
+            <div>
+                <h2 class="text-stone-900 dark:text-white text-3xl font-display font-extrabold leading-tight">Market Overview</h2>
+                <p class="text-stone-500 mt-1 font-body">Real-time performance of key indices.</p>
+            </div>
+            <button class="text-sm font-bold font-body text-primary hover:text-white transition-colors flex items-center gap-1">
+                View All Markets <span class="material-symbols-outlined text-sm">chevron_right</span>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 border border-stone-200 dark:border-border-dark flex flex-col justify-between h-64 relative overflow-hidden group hover:border-accent-up/50 transition-all duration-300 shadow-sm hover:shadow-xl">
+                <div class="absolute -right-10 -top-10 size-40 bg-accent-up/5 rounded-full blur-3xl group-hover:bg-accent-up/10 transition-colors"></div>
+                <div class="flex justify-between items-start z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="size-12 rounded-xl bg-accent-up/10 flex items-center justify-center text-accent-up">
+                            <span class="material-symbols-outlined text-2xl">show_chart</span>
                         </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="conversation-placeholder">
-                        Conversation will appear here...
+                        <div>
+                            <h3 class="text-xl font-display font-bold dark:text-white">S&amp;P 500</h3>
+                            <p class="text-xs font-mono text-stone-500">SPY • ETF</p>
+                        </div>
                     </div>
-                {% endif %}
+                    <div class="bg-accent-up/10 text-accent-up px-3 py-1 rounded-lg font-bold text-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">trending_up</span> +1.20%
+                    </div>
+                </div>
+                <div class="z-10 mt-auto">
+                    <p class="text-4xl font-display font-black text-stone-900 dark:text-white tabular-nums tracking-tight">412.34</p>
+                    <p class="text-stone-500 text-xs font-bold mt-1 uppercase tracking-wider">Market Price</p>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-24 opacity-30 group-hover:opacity-50 transition-opacity">
+                    <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 300 100">
+                        <defs>
+                            <linearGradient id="gradGreen" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#22c55e" stop-opacity="0.5"></stop>
+                                <stop offset="100%" stop-color="#22c55e" stop-opacity="0"></stop>
+                            </linearGradient>
+                        </defs>
+                        <path d="M0 80 C40 70, 80 90, 120 60 C160 30, 200 50, 240 20 L 300 10 V 100 H 0 Z" fill="url(#gradGreen)"></path>
+                        <path d="M0 80 C40 70, 80 90, 120 60 C160 30, 200 50, 240 20 L 300 10" fill="none" stroke="#22c55e" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+                    </svg>
+                </div>
             </div>
-            
-            <div class="conversation-actions">
-                <form method="POST" action="{{ url_for('continue_conversation') }}" class="response-form">
-                    <div class="form-group">
-                        <label for="user_response">Your Response</label>
-                        <textarea 
-                            id="user_response" 
-                            name="user_response" 
-                            placeholder="Type your response here..."
-                            rows="3"
-                        ></textarea>
+            <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 border border-stone-200 dark:border-border-dark flex flex-col justify-between h-64 relative overflow-hidden group hover:border-accent-up/50 transition-all duration-300 shadow-sm hover:shadow-xl">
+                <div class="absolute -right-10 -top-10 size-40 bg-accent-up/5 rounded-full blur-3xl group-hover:bg-accent-up/10 transition-colors"></div>
+                <div class="flex justify-between items-start z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="size-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+                            <span class="material-symbols-outlined text-2xl">currency_bitcoin</span>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-display font-bold dark:text-white">Bitcoin</h3>
+                            <p class="text-xs font-mono text-stone-500">BTC • CRYPTO</p>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-secondary">Send Response</button>
-                </form>
-                
-                <form method="POST" action="{{ url_for('clear_conversation') }}" class="clear-form">
-                    <button type="submit" class="btn btn-danger">Clear Conversation</button>
-                </form>
+                    <div class="bg-accent-up/10 text-accent-up px-3 py-1 rounded-lg font-bold text-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">trending_up</span> +2.45%
+                    </div>
+                </div>
+                <div class="z-10 mt-auto">
+                    <p class="text-4xl font-display font-black text-stone-900 dark:text-white tabular-nums tracking-tight">30,450</p>
+                    <p class="text-stone-500 text-xs font-bold mt-1 uppercase tracking-wider">USD Price</p>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-24 opacity-30 group-hover:opacity-50 transition-opacity">
+                    <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 300 100">
+                        <path d="M0 60 L 30 70 L 60 40 L 90 50 L 120 30 L 150 40 L 180 20 L 210 35 L 240 10 L 270 25 L 300 5 V 100 H 0 Z" fill="url(#gradGreen)"></path>
+                        <path d="M0 60 L 30 70 L 60 40 L 90 50 L 120 30 L 150 40 L 180 20 L 210 35 L 240 10 L 270 25 L 300 5" fill="none" stroke="#22c55e" stroke-linejoin="round" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-surface-dark rounded-3xl p-6 border border-stone-200 dark:border-border-dark flex flex-col justify-between h-64 relative overflow-hidden group hover:border-accent-down/50 transition-all duration-300 shadow-sm hover:shadow-xl">
+                <div class="absolute -right-10 -top-10 size-40 bg-accent-down/5 rounded-full blur-3xl group-hover:bg-accent-down/10 transition-colors"></div>
+                <div class="flex justify-between items-start z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="size-12 rounded-xl bg-accent-down/10 flex items-center justify-center text-accent-down">
+                            <span class="material-symbols-outlined text-2xl">electric_car</span>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-display font-bold dark:text-white">Tesla Inc.</h3>
+                            <p class="text-xs font-mono text-stone-500">TSLA • AUTO</p>
+                        </div>
+                    </div>
+                    <div class="bg-accent-down/10 text-accent-down px-3 py-1 rounded-lg font-bold text-sm flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">trending_down</span> -0.50%
+                    </div>
+                </div>
+                <div class="z-10 mt-auto">
+                    <p class="text-4xl font-display font-black text-stone-900 dark:text-white tabular-nums tracking-tight">165.08</p>
+                    <p class="text-stone-500 text-xs font-bold mt-1 uppercase tracking-wider">Last Close</p>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-24 opacity-30 group-hover:opacity-50 transition-opacity">
+                    <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 300 100">
+                        <defs>
+                            <linearGradient id="gradRed" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#ef4444" stop-opacity="0.5"></stop>
+                                <stop offset="100%" stop-color="#ef4444" stop-opacity="0"></stop>
+                            </linearGradient>
+                        </defs>
+                        <path d="M0 20 C50 15, 100 30, 150 50 C200 70, 250 60, 300 80 V 100 H 0 Z" fill="url(#gradRed)"></path>
+                        <path d="M0 20 C50 15, 100 30, 150 50 C200 70, 250 60, 300 80" fill="none" stroke="#ef4444" stroke-width="3" vector-effect="non-scaling-stroke"></path>
+                    </svg>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-{% endblock %}
+    </section>
 
+    <section class="w-full max-w-[1280px] px-4 md:px-10 py-6 mb-20 flex flex-col gap-8">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-stone-900 dark:text-white text-3xl font-display font-extrabold leading-tight">Today's Briefing</h2>
+                <p class="text-stone-500 mt-1 font-body">Curated stories moving the markets.</p>
+            </div>
+            <div class="flex gap-2 flex-wrap">
+                <button class="px-4 py-2 rounded-xl text-xs font-bold font-body bg-primary text-background-dark shadow-lg shadow-primary/20">All Stories</button>
+                <button class="px-4 py-2 rounded-xl text-xs font-bold font-body bg-surface-dark border border-border-dark text-stone-400 hover:text-white hover:border-white/20 transition-colors">Macro</button>
+                <button class="px-4 py-2 rounded-xl text-xs font-bold font-body bg-surface-dark border border-border-dark text-stone-400 hover:text-white hover:border-white/20 transition-colors">Tech</button>
+                <button class="px-4 py-2 rounded-xl text-xs font-bold font-body bg-surface-dark border border-border-dark text-stone-400 hover:text-white hover:border-white/20 transition-colors">Crypto</button>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <article class="flex flex-col bg-white dark:bg-surface-dark rounded-3xl overflow-hidden border border-stone-200 dark:border-border-dark group cursor-pointer hover:border-primary/50 transition-all hover:shadow-2xl hover:-translate-y-1">
+                <div class="h-48 w-full relative bg-stone-100 dark:bg-stone-800 overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
+                    <div class="absolute inset-0 flex items-center justify-center opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+                        <svg height="100%" preserveAspectRatio="xMidYMid slice" viewBox="0 0 200 100" width="100%" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="150" cy="50" fill="#d6d3d1" fill-opacity="0.1" r="40"></circle>
+                            <circle cx="50" cy="80" fill="#d6d3d1" fill-opacity="0.2" r="60"></circle>
+                            <rect class="text-primary" fill="currentColor" height="40" rx="10" width="40" x="80" y="30"></rect>
+                        </svg>
+                    </div>
+                    <div class="absolute top-4 left-4 bg-white/90 dark:bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-stone-900 dark:text-white text-xs font-bold font-mono tracking-wide border border-stone-200 dark:border-white/10">
+                        MACRO
+                    </div>
+                </div>
+                <div class="p-6 flex-1 flex flex-col">
+                    <div class="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 font-mono mb-3">
+                        <span class="font-bold text-primary">Bloomberg</span>
+                        <span>•</span>
+                        <span>2h ago</span>
+                    </div>
+                    <h3 class="text-stone-900 dark:text-white text-xl font-display font-bold leading-tight group-hover:text-primary transition-colors mb-2">
+                        Fed holds rates steady, signals potential cuts later this year as inflation cools
+                    </h3>
+                    <p class="text-stone-600 dark:text-stone-400 text-sm font-body leading-relaxed line-clamp-3">
+                        Analysts weigh in on the implications for consumers and businesses as the central bank maintains its stance in a surprising move.
+                    </p>
+                    <div class="mt-auto pt-4 flex items-center text-primary text-sm font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Read Analysis <span class="material-symbols-outlined text-sm">arrow_outward</span>
+                    </div>
+                </div>
+            </article>
+            <article class="flex flex-col bg-white dark:bg-surface-dark rounded-3xl overflow-hidden border border-stone-200 dark:border-border-dark group cursor-pointer hover:border-accent-up/50 transition-all hover:shadow-2xl hover:-translate-y-1">
+                <div class="h-48 w-full relative bg-stone-100 dark:bg-stone-800 overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-br from-accent-up/10 to-transparent"></div>
+                    <div class="absolute inset-0 flex items-center justify-center opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+                        <svg height="100%" preserveAspectRatio="xMidYMid slice" viewBox="0 0 200 100" width="100%" xmlns="http://www.w3.org/2000/svg">
+                            <path class="text-accent-up" d="M20 80 Q 50 20 80 80 T 140 80 T 200 20" fill="none" stroke="currentColor" stroke-width="2"></path>
+                            <circle class="text-accent-up" cx="140" cy="50" fill="currentColor" fill-opacity="0.2" r="20"></circle>
+                        </svg>
+                    </div>
+                    <div class="absolute top-4 left-4 bg-white/90 dark:bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-stone-900 dark:text-white text-xs font-bold font-mono tracking-wide border border-stone-200 dark:border-white/10">
+                        TECH
+                    </div>
+                </div>
+                <div class="p-6 flex-1 flex flex-col">
+                    <div class="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 font-mono mb-3">
+                        <span class="font-bold text-accent-up">TechCrunch</span>
+                        <span>•</span>
+                        <span>45m ago</span>
+                    </div>
+                    <h3 class="text-stone-900 dark:text-white text-xl font-display font-bold leading-tight group-hover:text-accent-up transition-colors mb-2">
+                        AI chip demand surges as tech giants race to build larger data centers
+                    </h3>
+                    <p class="text-stone-600 dark:text-stone-400 text-sm font-body leading-relaxed line-clamp-3">
+                        The unprecedented demand for specialized hardware is reshaping the semiconductor industry landscape and driving stock prices.
+                    </p>
+                    <div class="mt-auto pt-4 flex items-center text-accent-up text-sm font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Read Analysis <span class="material-symbols-outlined text-sm">arrow_outward</span>
+                    </div>
+                </div>
+            </article>
+            <article class="flex flex-col bg-white dark:bg-surface-dark rounded-3xl overflow-hidden border border-stone-200 dark:border-border-dark group cursor-pointer hover:border-primary/50 transition-all hover:shadow-2xl hover:-translate-y-1">
+                <div class="h-48 w-full relative bg-stone-100 dark:bg-stone-800 overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent"></div>
+                    <div class="absolute inset-0 flex items-center justify-center opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500">
+                        <svg height="100%" preserveAspectRatio="xMidYMid slice" viewBox="0 0 200 100" width="100%" xmlns="http://www.w3.org/2000/svg">
+                            <rect class="text-stone-600" fill="currentColor" height="60" width="30" x="40" y="40"></rect>
+                            <rect class="text-stone-500" fill="currentColor" height="80" width="30" x="85" y="20"></rect>
+                            <rect class="text-stone-400" fill="currentColor" height="50" width="30" x="130" y="50"></rect>
+                        </svg>
+                    </div>
+                    <div class="absolute top-4 left-4 bg-white/90 dark:bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg text-stone-900 dark:text-white text-xs font-bold font-mono tracking-wide border border-stone-200 dark:border-white/10">
+                        FINANCE
+                    </div>
+                </div>
+                <div class="p-6 flex-1 flex flex-col">
+                    <div class="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 font-mono mb-3">
+                        <span class="font-bold text-primary">CNBC</span>
+                        <span>•</span>
+                        <span>3h ago</span>
+                    </div>
+                    <h3 class="text-stone-900 dark:text-white text-xl font-display font-bold leading-tight group-hover:text-primary transition-colors mb-2">
+                        Banking sector shows resilience in stress tests, paving way for buybacks
+                    </h3>
+                    <p class="text-stone-600 dark:text-stone-400 text-sm font-body leading-relaxed line-clamp-3">
+                        Major banks demonstrate strong capital positions, easing concerns about financial stability and pleasing investors.
+                    </p>
+                    <div class="mt-auto pt-4 flex items-center text-primary text-sm font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Read Analysis <span class="material-symbols-outlined text-sm">arrow_outward</span>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+</main>
+
+<footer class="w-full border-t border-border-dark bg-background-dark py-10 px-4 md:px-10">
+    <div class="max-w-[1280px] mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+        <div class="flex items-center gap-2 text-white">
+            <div class="size-6 text-primary">
+                <svg class="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
+                </svg>
+            </div>
+            <span class="text-lg font-bold font-display">StockIntel</span>
+        </div>
+        <div class="text-stone-500 text-sm font-body">
+            © 2024 StockIntel Inc. All market data delayed by 15 minutes.
+        </div>
+        <div class="flex gap-6">
+            <a class="text-stone-500 hover:text-white transition-colors font-body" href="#">Privacy</a>
+            <a class="text-stone-500 hover:text-white transition-colors font-body" href="#">Terms</a>
+            <a class="text-stone-500 hover:text-white transition-colors font-body" href="#">Contact</a>
+        </div>
+    </div>
+</footer>
+{% endblock %}

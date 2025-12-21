@@ -14,7 +14,14 @@ class VectorSearch:
     
     def __init__(self):
         """Initialize vector search service."""
-        self.db = get_database_manager()
+        self._db = None  # Lazy initialization - only connect when needed
+    
+    @property
+    def db(self):
+        """Lazy initialization of database manager."""
+        if self._db is None:
+            self._db = get_database_manager()
+        return self._db
     
     def search_chunks(
         self,

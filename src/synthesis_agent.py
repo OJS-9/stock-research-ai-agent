@@ -4,6 +4,7 @@ Synthesis agent that consolidates research outputs into a final business model r
 
 import os
 from typing import Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 from agents import Agent, Runner, trace, ModelSettings
@@ -66,13 +67,16 @@ class SynthesisAgent:
             with trace("Report Synthesis", metadata={
                 "ticker": ticker,
                 "trade_type": trade_type,
-                "subjects_count": len(research_outputs)
+                "subjects_count": str(len(research_outputs))  # Fixed: cast to string for tracing API
             }):
-                result = Runner.run_sync(
-                    agent,
-                    synthesis_prompt,
-                    max_turns=10
-                )
+                # Run in a thread to avoid event loop conflicts (similar to specialized agents)
+                # This ensures Runner.run_sync() works even when called from a context with an active event loop
+                def _run_synthesis_in_thread():
+                    return Runner.run_sync(agent, synthesis_prompt, max_turns=10)
+                
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_run_synthesis_in_thread)
+                    result = future.result()
             
             # Extract output
             if hasattr(result, 'final_output'):

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-b-stone-200 dark:border-b-border-dark bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 sm:px-10 py-3">
+    <div class="flex items-center gap-4 text-stone-900 dark:text-white">
+        <div class="size-8 text-primary">
+            <svg class="w-full h-full" fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
+            </svg>
+        </div>
+        <h2 class="text-stone-900 dark:text-white text-xl font-bold leading-tight tracking-[-0.015em] font-display">StockIntel / Chat</h2>
+    </div>
+    <div class="hidden md:flex flex-1 justify-end gap-8">
+        <div class="flex items-center gap-9">
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="{{ url_for('index') }}">Dashboard</a>
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="{{ url_for('chat') }}">AI Agent</a>
+            <a class="text-stone-900 dark:text-white hover:text-primary transition-colors text-sm font-medium leading-normal" href="#">Watchlist</a>
+        </div>
+        <div class="flex items-center justify-center size-10 rounded-full bg-surface-dark border border-border-dark">
+            <span class="material-symbols-outlined text-white text-xl">account_circle</span>
+        </div>
+    </div>
+    <div class="md:hidden text-white">
+        <span class="material-symbols-outlined cursor-pointer">menu</span>
+    </div>
+</header>
+
+<main class="flex-1 flex flex-col w-full max-w-6xl mx-auto px-4 py-6">
+    <div class="flex-1 overflow-y-auto mb-4 space-y-6 pb-4" id="chat-messages">
+        {% if not conversation_history or conversation_history|length == 0 %}
+        <!-- AI Greeting Message -->
+        <div class="flex items-start gap-3">
+            <div class="flex-shrink-0 size-8 rounded-full bg-surface-dark flex items-center justify-center">
+                <span class="material-symbols-outlined text-white text-xl">smart_toy</span>
+            </div>
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-sm font-bold text-white">StockIntel AI</span>
+                    <span class="text-xs text-stone-500">10:02 AM</span>
+                </div>
+                <div class="bg-surface-dark rounded-2xl px-4 py-3 max-w-3xl">
+                    <p class="text-white text-sm leading-relaxed">
+                        Hello! I'm your advanced market research assistant. I can analyze real-time stock data, summarize complex financial reports, or visualize market trends for you. Try asking: 'Analyze NVDA performance' or 'What's happening with Crypto today?'
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+            {% for message in conversation_history %}
+                {% if message.role == 'user' %}
+                <!-- User Message -->
+                <div class="flex items-start gap-3 justify-end">
+                    <div class="flex-1 flex justify-end">
+                        <div class="max-w-3xl">
+                            <div class="flex items-center gap-2 mb-1 justify-end">
+                                <span class="text-xs text-stone-500">10:02 AM</span>
+                                <span class="text-sm font-bold text-white">You</span>
+                            </div>
+                            <div class="bg-surface-dark rounded-2xl px-4 py-3">
+                                <p class="text-white text-sm leading-relaxed">{{ message.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0 size-8 rounded-full bg-primary/20 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-white text-xl">person</span>
+                    </div>
+                </div>
+                {% else %}
+                <!-- AI Message -->
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 size-8 rounded-full bg-surface-dark flex items-center justify-center">
+                        <span class="material-symbols-outlined text-white text-xl">smart_toy</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-sm font-bold text-white">StockIntel AI</span>
+                            <span class="text-xs text-stone-500">10:02 AM</span>
+                        </div>
+                        <div class="bg-surface-dark rounded-2xl px-4 py-3 max-w-3xl">
+                            <div class="text-white text-sm leading-relaxed whitespace-pre-wrap">{{ message.content }}</div>
+                            
+                            {% if current_ticker and message.role == 'assistant' and loop.last %}
+                            <!-- Stock Data Cards (Placeholder) -->
+                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Main Stock Info Card -->
+                                <div class="bg-background-dark rounded-2xl p-6 border border-border-dark relative overflow-hidden">
+                                    <div class="flex items-start justify-between mb-4">
+                                        <div>
+                                            <h3 class="text-2xl font-display font-bold text-white">{{ current_ticker }}</h3>
+                                            <p class="text-xs text-stone-500 font-mono mt-1">NASDAQ</p>
+                                        </div>
+                                        <div class="bg-accent-up/10 text-accent-up px-3 py-1 rounded-lg font-bold text-sm flex items-center gap-1">
+                                            <span class="material-symbols-outlined text-sm">trending_up</span> 3.42%
+                                        </div>
+                                    </div>
+                                    <div class="mb-4">
+                                        <p class="text-4xl font-display font-black text-white tabular-nums">$452.80</p>
+                                        <p class="text-xs text-stone-500 mt-1 uppercase tracking-wider">Latest Close</p>
+                                    </div>
+                                    <div class="h-16 opacity-50">
+                                        <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 300 60">
+                                            <path d="M0 50 L 30 45 L 60 40 L 90 35 L 120 30 L 150 25 L 180 20 L 210 15 L 240 10 L 270 5 L 300 0" fill="none" stroke="#22c55e" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                                
+                                <!-- Metric Cards -->
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
+                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">MARKET CAP</p>
+                                        <p class="text-xl font-display font-bold text-white">1.12T</p>
+                                    </div>
+                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
+                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">P/E RATIO</p>
+                                        <p class="text-xl font-display font-bold text-white">220.5</p>
+                                    </div>
+                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
+                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">VOLUME</p>
+                                        <p class="text-xl font-display font-bold text-white">42.5M</p>
+                                    </div>
+                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
+                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">RATING</p>
+                                        <div class="flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-accent-up text-lg">thumb_up</span>
+                                            <p class="text-xl font-display font-bold text-accent-up">Buy</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Recent Headlines Section -->
+                            <div class="mt-4 pt-4 border-t border-border-dark">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="size-2 rounded-full bg-stone-500"></div>
+                                    <p class="text-xs text-stone-500 uppercase tracking-wider font-bold">RECENT HEADLINES</p>
+                                </div>
+                                <p class="text-xs text-stone-500 italic">No headlines available</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
+    
+    <!-- Input Field -->
+    <div class="sticky bottom-0 bg-background-dark pt-4 pb-2">
+        <form method="POST" action="{{ url_for('continue_conversation') }}" class="flex items-center gap-2 bg-surface-dark rounded-2xl p-2 border border-border-dark">
+            <button type="button" class="flex-shrink-0 size-10 flex items-center justify-center text-stone-400 hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-2xl">add</span>
+            </button>
+            <input 
+                type="text" 
+                name="user_response"
+                id="user_response"
+                placeholder="Ask about stocks, markets, or news..." 
+                class="flex-1 bg-transparent border-none text-white placeholder:text-stone-500 focus:ring-0 focus:outline-none text-sm"
+                required
+            />
+            <button 
+                type="submit" 
+                class="flex-shrink-0 size-10 rounded-full bg-primary hover:bg-white text-background-dark flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+            >
+                <span class="material-symbols-outlined text-xl">arrow_upward</span>
+            </button>
+        </form>
+        <p class="text-xs text-stone-500 text-center mt-2">
+            StockIntel AI can make mistakes. Verify important financial data.
+        </p>
+    </div>
+</main>
+
+<script>
+    // Auto-scroll to bottom on page load
+    window.addEventListener('load', function() {
+        const chatMessages = document.getElementById('chat-messages');
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    });
+</script>
+{% endblock %}
+
