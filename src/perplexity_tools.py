@@ -3,8 +3,16 @@ Perplexity research tools for OpenAI function calling.
 Provides function definitions and execution handlers for Perplexity Sonar API.
 """
 
+import os
+import asyncio
 from typing import Dict, Any, Optional
-from perplexity_client import PerplexityClient
+
+from src.perplexity_client import PerplexityClient
+
+# Default wall-clock timeout (seconds) for the Perplexity tool invocation
+PERPLEXITY_TOOL_TIMEOUT_SECONDS = float(
+    os.getenv("PERPLEXITY_TOOL_TIMEOUT_SECONDS", "10.0")
+)
 
 
 def get_perplexity_research_function() -> Dict[str, Any]:
@@ -113,12 +121,15 @@ async def execute_perplexity_research(
     system_message = system_messages.get(focus, system_messages["general"])
     
     try:
-        # Call Perplexity API
-        research_content = await perplexity_client.research(
-            query=formatted_query,
-            system_message=system_message,
-            temperature=0.2,  # Lower temperature for factual research
-            max_tokens=2000
+        # Call Perplexity API with a hard wall-clock timeout to avoid long-running agents
+        research_content = await asyncio.wait_for(
+            perplexity_client.research(
+                query=formatted_query,
+                system_message=system_message,
+                temperature=0.2,  # Lower temperature for factual research
+                max_tokens=2000
+            ),
+            timeout=PERPLEXITY_TOOL_TIMEOUT_SECONDS
         )
         
         return {
@@ -126,6 +137,16 @@ async def execute_perplexity_research(
             "research": research_content,
             "focus": focus,
             "status": "success"
+        }
+    except asyncio.TimeoutError:
+        return {
+            "query": query,
+            "research": (
+                f"Error: Perplexity research timed out after "
+                f"{PERPLEXITY_TOOL_TIMEOUT_SECONDS:.0f} seconds."
+            ),
+            "focus": focus,
+            "status": "timeout"
         }
     except Exception as e:
         return {

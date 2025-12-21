@@ -3,12 +3,18 @@ Perplexity Sonar API client for real-time web research.
 """
 
 import os
+import asyncio
 from typing import Optional
-from openai import AsyncOpenAI
+
+import httpx
+from openai import AsyncOpenAI, APIConnectionError, APITimeoutError
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Default timeout (seconds) for Perplexity HTTP requests
+PERPLEXITY_TIMEOUT_SECONDS = float(os.getenv("PERPLEXITY_TIMEOUT_SECONDS", "10.0"))
 
 
 class PerplexityClient:
@@ -39,10 +45,11 @@ class PerplexityClient:
                 "Set PERPLEXITY_API_KEY environment variable or pass api_key parameter."
             )
         
-        # Initialize AsyncOpenAI client with Perplexity base URL
+        # Initialize AsyncOpenAI client with Perplexity base URL and timeout
         self.client = AsyncOpenAI(
             api_key=self.api_key,
-            base_url="https://api.perplexity.ai"
+            base_url="https://api.perplexity.ai",
+            timeout=httpx.Timeout(PERPLEXITY_TIMEOUT_SECONDS),
         )
     
     async def research(
@@ -76,16 +83,23 @@ class PerplexityClient:
         
         messages.append({"role": "user", "content": query})
         
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-        
-        return response.choices[0].message.content or ""
-
-
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content or ""
+        except (APITimeoutError, APIConnectionError, asyncio.TimeoutError) as e:
+            return (
+                f"[Perplexity timeout] Research request exceeded "
+                f"{PERPLEXITY_TIMEOUT_SECONDS:.0f}s limit: {e}"
+            )
+        except Exception as e:
+            return f"[Perplexity error] Research request failed: {e}"
+    
+    
 def create_perplexity_client(api_key: Optional[str] = None, model: Optional[str] = None) -> PerplexityClient:
     """
     Create a new Perplexity client instance.
@@ -98,4 +112,5 @@ def create_perplexity_client(api_key: Optional[str] = None, model: Optional[str]
         PerplexityClient instance
     """
     return PerplexityClient(api_key=api_key, model=model or "sonar")
-
+    
+    

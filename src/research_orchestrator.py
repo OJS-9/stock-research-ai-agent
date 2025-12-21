@@ -2,12 +2,17 @@
 Research orchestrator for coordinating parallel specialized research agents.
 """
 
+import os
 from typing import Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 from research_subjects import get_research_subjects, format_subject_prompt
 from specialized_agent import SpecializedResearchAgent
+
+# Default maximum worker count – controls how many specialized agents
+# run concurrently. This spreads token usage over time.
+DEFAULT_MAX_WORKERS = int(os.getenv("RESEARCH_MAX_WORKERS", "3"))
 
 
 class ResearchOrchestrator:
@@ -53,7 +58,7 @@ class ResearchOrchestrator:
         ticker: str,
         trade_type: str,
         context: str = "",
-        max_workers: int = 6
+        max_workers: int = DEFAULT_MAX_WORKERS,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Execute parallel research using specialized agents.
@@ -71,7 +76,10 @@ class ResearchOrchestrator:
         results = {}
         
         print(f"Starting parallel research for {ticker} ({trade_type})...")
-        print(f"Researching {len(subjects)} subjects in parallel...")
+        print(
+            f"Researching {len(subjects)} subjects with up to "
+            f"{max_workers} concurrent workers..."
+        )
         
         start_time = time.time()
         

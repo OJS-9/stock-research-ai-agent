@@ -15,9 +15,16 @@ class ReportStorage:
     
     def __init__(self):
         """Initialize report storage service."""
-        self.db = get_database_manager()
+        self._db = None  # Lazy initialization - only connect when needed
         self.chunker = ReportChunker()
         self.embedding_service = EmbeddingService()
+    
+    @property
+    def db(self):
+        """Lazy initialization of database manager."""
+        if self._db is None:
+            self._db = get_database_manager()
+        return self._db
     
     def store_report(
         self,

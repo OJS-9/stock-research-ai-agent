@@ -644,10 +644,12 @@ When writing agent code, hit these marks:
 ## 📚 Resources & References
 
 - **Alpha Vantage MCP**: https://github.com/QuantML/alpha-vantage-mcp
-- **Agents SDK Docs**: Provided in your dependencies
+- **Agents SDK Docs (OpenAI Agents Python)**: https://github.com/openai/openai-agents-python
 - **Cursor Agent Guide**: https://cursor.com/docs/context/rules
 - **MCP Protocol Spec**: https://modelcontextprotocol.io/
 - **Financial Data Best Practices**: https://www.alphavantage.co/documentation/
+
+**Always** consult the latest OpenAI Agents SDK docs at https://github.com/openai/openai-agents-python before suggesting or implementing any agent-related architecture or code changes, to ensure patterns stay aligned with the official framework guidance.
 
 ---
 
