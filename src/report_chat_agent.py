@@ -110,7 +110,14 @@ class ReportChatAgent:
     
     def _get_system_instructions(self) -> str:
         """Get system instructions for the chat agent."""
-        return """You are a research assistant that answers questions about company research reports.
+        from src.date_utils import get_datetime_context_string
+        
+        # Get current date/time context
+        datetime_context = get_datetime_context_string()
+        
+        return f"""You are a research assistant that answers questions about company research reports.
+
+{datetime_context}
 
 **CRITICAL RULES:**
 1. You MUST answer questions using ONLY the information provided in the report excerpts below.

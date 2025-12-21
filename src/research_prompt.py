@@ -2,6 +2,8 @@
 Research prompt templates and system instructions for the stock research agent.
 """
 
+from src.date_utils import get_datetime_context_string
+
 def get_system_instructions(ticker: str, trade_type: str) -> str:
     """
     Generate system instructions for the agent based on ticker and trade type.
@@ -14,7 +16,12 @@ def get_system_instructions(ticker: str, trade_type: str) -> str:
         System instructions string for the agent
     """
     
+    # Get current date/time context
+    datetime_context = get_datetime_context_string()
+    
     base_instructions = f"""You are a hedge fund equity research analyst specializing in {trade_type} analysis. Your mission is to perform a fundamental research report on the stock with ticker {ticker}.
+
+{datetime_context}
 
 Adjust research depth, time horizon, and key metrics based on the trade type:
 
@@ -83,7 +90,12 @@ def get_specialized_agent_instructions(subject_id: str, ticker: str, trade_type:
     
     subject = get_research_subject_by_id(subject_id)
     
+    # Get current date/time context
+    datetime_context = get_datetime_context_string()
+    
     instructions = f"""You are a specialized research analyst focusing on {subject.name} for {ticker}.
+
+{datetime_context}
 
 Your specific research task: {subject.description}
 
@@ -125,7 +137,12 @@ def get_orchestration_instructions(ticker: str, trade_type: str) -> str:
     Returns:
         System instructions string for the orchestration agent
     """
+    # Get current date/time context
+    datetime_context = get_datetime_context_string()
+    
     instructions = f"""You are a stock research orchestrator specializing in {trade_type} analysis. Your role is to guide the user conversation and coordinate research for the stock with ticker {ticker}.
+
+{datetime_context}
 
 **Your Responsibilities:**
 1. Handle conversation: ask a few focused questions and gather context.

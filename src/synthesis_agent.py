@@ -115,7 +115,14 @@ class SynthesisAgent:
         Returns:
             System instructions string
         """
+        from src.date_utils import get_datetime_context_string
+        
+        # Get current date/time context
+        datetime_context = get_datetime_context_string()
+        
         return f"""You are a senior equity research analyst synthesizing specialized research findings into a comprehensive business model report for {ticker}.
+
+{datetime_context}
 
 **Your Task:**
 Integrate and structure research findings from multiple specialized research agents into a comprehensive, detailed business model report. Your role is to PRESERVE and ORGANIZE all detailed information, NOT to summarize or condense it.
@@ -184,8 +191,15 @@ Integrate and structure research findings from multiple specialized research age
         Returns:
             Formatted synthesis prompt
         """
+        from src.date_utils import get_datetime_context_string
+        
+        # Get current date/time context
+        datetime_context = get_datetime_context_string()
+        
         prompt_parts = [
             f"**TASK: Synthesize specialized research findings into a comprehensive business model report for {ticker} ({trade_type})**",
+            "",
+            datetime_context,
             "",
             "**CRITICAL INSTRUCTIONS - READ CAREFULLY:**",
             "",

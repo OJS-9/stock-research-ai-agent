@@ -77,66 +77,7 @@
                             <span class="text-xs text-stone-500">10:02 AM</span>
                         </div>
                         <div class="bg-surface-dark rounded-2xl px-4 py-3 max-w-3xl">
-                            <div class="text-white text-sm leading-relaxed whitespace-pre-wrap">{{ message.content }}</div>
-                            
-                            {% if current_ticker and message.role == 'assistant' and loop.last %}
-                            <!-- Stock Data Cards (Placeholder) -->
-                            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <!-- Main Stock Info Card -->
-                                <div class="bg-background-dark rounded-2xl p-6 border border-border-dark relative overflow-hidden">
-                                    <div class="flex items-start justify-between mb-4">
-                                        <div>
-                                            <h3 class="text-2xl font-display font-bold text-white">{{ current_ticker }}</h3>
-                                            <p class="text-xs text-stone-500 font-mono mt-1">NASDAQ</p>
-                                        </div>
-                                        <div class="bg-accent-up/10 text-accent-up px-3 py-1 rounded-lg font-bold text-sm flex items-center gap-1">
-                                            <span class="material-symbols-outlined text-sm">trending_up</span> 3.42%
-                                        </div>
-                                    </div>
-                                    <div class="mb-4">
-                                        <p class="text-4xl font-display font-black text-white tabular-nums">$452.80</p>
-                                        <p class="text-xs text-stone-500 mt-1 uppercase tracking-wider">Latest Close</p>
-                                    </div>
-                                    <div class="h-16 opacity-50">
-                                        <svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 300 60">
-                                            <path d="M0 50 L 30 45 L 60 40 L 90 35 L 120 30 L 150 25 L 180 20 L 210 15 L 240 10 L 270 5 L 300 0" fill="none" stroke="#22c55e" stroke-width="2" vector-effect="non-scaling-stroke"></path>
-                                        </svg>
-                                    </div>
-                                </div>
-                                
-                                <!-- Metric Cards -->
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
-                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">MARKET CAP</p>
-                                        <p class="text-xl font-display font-bold text-white">1.12T</p>
-                                    </div>
-                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
-                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">P/E RATIO</p>
-                                        <p class="text-xl font-display font-bold text-white">220.5</p>
-                                    </div>
-                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
-                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">VOLUME</p>
-                                        <p class="text-xl font-display font-bold text-white">42.5M</p>
-                                    </div>
-                                    <div class="bg-background-dark rounded-xl p-4 border border-border-dark">
-                                        <p class="text-xs text-stone-500 uppercase tracking-wider mb-1">RATING</p>
-                                        <div class="flex items-center gap-2">
-                                            <span class="material-symbols-outlined text-accent-up text-lg">thumb_up</span>
-                                            <p class="text-xl font-display font-bold text-accent-up">Buy</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Recent Headlines Section -->
-                            <div class="mt-4 pt-4 border-t border-border-dark">
-                                <div class="flex items-center gap-2 mb-3">
-                                    <div class="size-2 rounded-full bg-stone-500"></div>
-                                    <p class="text-xs text-stone-500 uppercase tracking-wider font-bold">RECENT HEADLINES</p>
-                                </div>
-                                <p class="text-xs text-stone-500 italic">No headlines available</p>
-                            </div>
-                            {% endif %}
+                            <div class="text-white text-sm leading-relaxed markdown-content">{{ message.content | markdown | safe }}</div>
                         </div>
                     </div>
                 </div>
@@ -180,6 +121,16 @@
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     });
+
+    // Configure marked.js for security and better rendering
+    if (typeof marked !== 'undefined') {
+        marked.setOptions({
+            breaks: true,  // Convert line breaks to <br>
+            gfm: true,     // GitHub Flavored Markdown
+            headerIds: false,  // Disable header IDs for security
+            mangle: false
+        });
+    }
 
     // Handle form submission via AJAX
     document.addEventListener('DOMContentLoaded', function() {
@@ -228,10 +179,42 @@
                 // Clear input (now safe to clear since FormData is already created)
                 input.value = '';
                 
+                // Detect if this might trigger report generation
+                const reportKeywords = ['generate', 'report', 'create report', 'synthesize', 'final report', 'business model'];
+                const lowerMessage = userMessage.toLowerCase();
+                const isLikelyReportGeneration = reportKeywords.some(keyword => lowerMessage.includes(keyword));
+                
                 // Add loading indicator for AI response
-                const loadingDiv = createLoadingMessage();
+                // Start with regular thinking, switch to synthesis messages if it takes longer
+                const loadingDiv = createLoadingMessage(false);
                 chatMessages.appendChild(loadingDiv);
                 scrollToBottom();
+                
+                // If likely report generation, switch to synthesis messages after 2 seconds
+                // Also switch if loading takes longer than 5 seconds (indicating report generation)
+                let synthesisCheckTimeout = null;
+                let longLoadingTimeout = null;
+                
+                const switchToSynthesisMessages = () => {
+                    const loadingText = loadingDiv.querySelector('#loading-message-text');
+                    if (loadingText && document.body.contains(loadingText)) {
+                        loadingText.textContent = synthesisMessages[0];
+                        synthesisMessageIndex = 0;
+                        startSynthesisMessageRotation(loadingDiv);
+                    }
+                };
+                
+                if (isLikelyReportGeneration) {
+                    synthesisCheckTimeout = setTimeout(switchToSynthesisMessages, 2000);
+                }
+                
+                // Always check after 5 seconds - if still loading, probably synthesis
+                longLoadingTimeout = setTimeout(() => {
+                    const loadingText = loadingDiv.querySelector('#loading-message-text');
+                    if (loadingText && loadingText.textContent === 'Thinking...') {
+                        switchToSynthesisMessages();
+                    }
+                }, 5000);
                 
                 try {
                     // Send request via fetch (FormData already created with correct value)
@@ -244,7 +227,14 @@
                         }
                     });
                     
-                    // Remove loading indicator
+                    // Stop synthesis message rotation and remove loading indicator
+                    stopSynthesisMessageRotation();
+                    if (synthesisCheckTimeout) {
+                        clearTimeout(synthesisCheckTimeout);
+                    }
+                    if (longLoadingTimeout) {
+                        clearTimeout(longLoadingTimeout);
+                    }
                     loadingDiv.remove();
                     
                     if (response.ok) {
@@ -276,6 +266,13 @@
                     }
                 } catch (error) {
                     console.error('Error:', error);
+                    stopSynthesisMessageRotation();
+                    if (synthesisCheckTimeout) {
+                        clearTimeout(synthesisCheckTimeout);
+                    }
+                    if (longLoadingTimeout) {
+                        clearTimeout(longLoadingTimeout);
+                    }
                     loadingDiv.remove();
                     const errorDiv = createErrorMessage('Network error: Failed to send message. Please check your connection and try again.');
                     chatMessages.appendChild(errorDiv);
@@ -331,6 +328,10 @@
         const div = document.createElement('div');
         div.className = 'flex items-start gap-3';
         const timeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Render markdown instead of escaping HTML
+        const markdownContent = typeof marked !== 'undefined' ? marked.parse(content) : escapeHtml(content);
+        
         div.innerHTML = `
             <div class="flex-shrink-0 size-8 rounded-full bg-surface-dark flex items-center justify-center">
                 <span class="material-symbols-outlined text-white text-xl">smart_toy</span>
@@ -341,19 +342,41 @@
                     <span class="text-xs text-stone-500">${timeString}</span>
                 </div>
                 <div class="bg-surface-dark rounded-2xl px-4 py-3 max-w-3xl">
-                    <div class="text-white text-sm leading-relaxed whitespace-pre-wrap">${escapeHtml(content)}</div>
+                    <div class="text-white text-sm leading-relaxed markdown-content">${markdownContent}</div>
                 </div>
             </div>
         `;
         return div;
     }
     
+    // Synthesis status messages for report generation
+    const synthesisMessages = [
+        "Synthesizing research findings into comprehensive report...",
+        "Combining insights from all research areas...",
+        "Organizing analysis into structured format...",
+        "Integrating financial data and market research...",
+        "Crafting investment thesis and recommendations...",
+        "Writing executive summary and key conclusions...",
+        "Formatting final report sections..."
+    ];
+    
+    let synthesisMessageIndex = 0;
+    let synthesisMessageInterval = null;
+    
     // Create loading message element
-    function createLoadingMessage() {
+    function createLoadingMessage(isSynthesisPhase = false) {
         const div = document.createElement('div');
         div.className = 'flex items-start gap-3';
         div.id = 'loading-message';
         const timeString = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Determine initial message
+        let initialMessage = "Thinking...";
+        if (isSynthesisPhase && synthesisMessages.length > 0) {
+            initialMessage = synthesisMessages[0];
+            synthesisMessageIndex = 0;
+        }
+        
         div.innerHTML = `
             <div class="flex-shrink-0 size-8 rounded-full bg-surface-dark flex items-center justify-center">
                 <span class="material-symbols-outlined text-white text-xl">smart_toy</span>
@@ -365,12 +388,50 @@
                 </div>
                 <div class="bg-surface-dark rounded-2xl px-4 py-3 max-w-3xl">
                     <div class="flex items-center gap-2">
-                        <div class="animate-pulse text-stone-400 text-sm">Thinking...</div>
+                        <div class="animate-pulse text-stone-400 text-sm" id="loading-message-text">${initialMessage}</div>
                     </div>
                 </div>
             </div>
         `;
+        
+        // Start rotating messages if in synthesis phase
+        if (isSynthesisPhase) {
+            startSynthesisMessageRotation(div);
+        }
+        
         return div;
+    }
+    
+    // Rotate synthesis messages every 10 seconds
+    function startSynthesisMessageRotation(loadingDiv) {
+        // Clear any existing interval
+        if (synthesisMessageInterval) {
+            clearInterval(synthesisMessageInterval);
+        }
+        
+        const messageElement = loadingDiv.querySelector('#loading-message-text');
+        if (!messageElement || synthesisMessages.length === 0) return;
+        
+        synthesisMessageIndex = 0;
+        
+        synthesisMessageInterval = setInterval(() => {
+            if (messageElement && document.body.contains(messageElement)) {
+                synthesisMessageIndex = (synthesisMessageIndex + 1) % synthesisMessages.length;
+                messageElement.textContent = synthesisMessages[synthesisMessageIndex];
+            } else {
+                // Element removed, stop rotation
+                clearInterval(synthesisMessageInterval);
+                synthesisMessageInterval = null;
+            }
+        }, 10000); // Change message every 10 seconds
+    }
+    
+    // Stop synthesis message rotation
+    function stopSynthesisMessageRotation() {
+        if (synthesisMessageInterval) {
+            clearInterval(synthesisMessageInterval);
+            synthesisMessageInterval = null;
+        }
     }
     
     // Create error message element
@@ -397,5 +458,159 @@
         return div.innerHTML;
     }
 </script>
+
+<style>
+    /* Markdown Content Styling */
+    .markdown-content {
+        line-height: 1.7;
+    }
+    
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3,
+    .markdown-content h4,
+    .markdown-content h5,
+    .markdown-content h6 {
+        color: #ffffff;
+        font-weight: 700;
+        margin-top: 1.5em;
+        margin-bottom: 0.75em;
+        line-height: 1.3;
+    }
+    
+    .markdown-content h1 {
+        font-size: 1.5em;
+        border-bottom: 1px solid #292524;
+        padding-bottom: 0.5em;
+    }
+    
+    .markdown-content h2 {
+        font-size: 1.3em;
+        border-bottom: 1px solid #292524;
+        padding-bottom: 0.4em;
+    }
+    
+    .markdown-content h3 {
+        font-size: 1.15em;
+    }
+    
+    .markdown-content h4 {
+        font-size: 1.05em;
+    }
+    
+    .markdown-content p {
+        margin-bottom: 1em;
+    }
+    
+    .markdown-content ul,
+    .markdown-content ol {
+        margin: 1em 0;
+        padding-left: 1.5em;
+    }
+    
+    .markdown-content li {
+        margin: 0.5em 0;
+    }
+    
+    .markdown-content ul {
+        list-style-type: disc;
+    }
+    
+    .markdown-content ol {
+        list-style-type: decimal;
+    }
+    
+    .markdown-content code {
+        background-color: #0c0a09;
+        color: #22c55e;
+        padding: 0.2em 0.4em;
+        border-radius: 0.25rem;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        border: 1px solid #292524;
+    }
+    
+    .markdown-content pre {
+        background-color: #0c0a09;
+        border: 1px solid #292524;
+        border-radius: 0.5rem;
+        padding: 1em;
+        overflow-x: auto;
+        margin: 1em 0;
+    }
+    
+    .markdown-content pre code {
+        background-color: transparent;
+        color: #d6d3d1;
+        padding: 0;
+        border: none;
+        display: block;
+        white-space: pre;
+    }
+    
+    .markdown-content blockquote {
+        border-left: 4px solid #d6d3d1;
+        padding-left: 1em;
+        margin: 1em 0;
+        color: #a8a29e;
+        font-style: italic;
+    }
+    
+    .markdown-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1em 0;
+        border: 1px solid #292524;
+    }
+    
+    .markdown-content th,
+    .markdown-content td {
+        padding: 0.75em;
+        text-align: left;
+        border: 1px solid #292524;
+    }
+    
+    .markdown-content th {
+        background-color: #1c1917;
+        font-weight: 600;
+        color: #ffffff;
+    }
+    
+    .markdown-content td {
+        background-color: #0c0a09;
+    }
+    
+    .markdown-content a {
+        color: #22c55e;
+        text-decoration: underline;
+        transition: color 0.2s;
+    }
+    
+    .markdown-content a:hover {
+        color: #16a34a;
+    }
+    
+    .markdown-content hr {
+        border: none;
+        border-top: 1px solid #292524;
+        margin: 2em 0;
+    }
+    
+    .markdown-content strong {
+        font-weight: 700;
+        color: #ffffff;
+    }
+    
+    .markdown-content em {
+        font-style: italic;
+    }
+    
+    .markdown-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin: 1em 0;
+    }
+</style>
 {% endblock %}
 

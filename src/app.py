@@ -13,6 +13,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import os
 from dotenv import load_dotenv
 import uuid
+import markdown
 
 from agent import create_agent, StockResearchAgent
 
@@ -25,6 +26,9 @@ app = Flask(__name__,
             template_folder=str(project_root / 'templates'), 
             static_folder=str(project_root / 'static'))
 app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
+
+# Register markdown filter for Jinja2 templates
+app.jinja_env.filters['markdown'] = markdown.markdown
 
 # Global agent instances (keyed by session ID)
 agent_sessions = {}
@@ -228,10 +232,11 @@ def continue_conversation():
         report_preview = None
         
         if current_report_id and current_report_id != previous_report_id:
-            # A new report was generated - get report text from agent and add preview to conversation
+            # A new report was generated - get full report text from agent and add to conversation
             report_text = getattr(agent, 'last_report_text', None) or session.get('report_text', '')
             if report_text:
-                report_preview = f"Report Generated:\n\n{report_text[:500] if report_text else 'No report content'}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
+                # Display the full report text in the chat
+                report_preview = f"# Research Report\n\n{report_text}"
                 conversation_history.append({
                     "role": "assistant",
                     "content": report_preview
@@ -290,8 +295,8 @@ def generate_report():
         session['report_text'] = report_text
         session['status_message'] = f'✅ Report generated successfully! Report ID: {report_id[:8]}...'
         
-        # Add report to conversation
-        report_preview = f"Report Generated:\n\n{report_text[:500] if report_text else 'No report content'}...\n\n[Full report stored. You can now chat with it using the chat interface.]"
+        # Add full report to conversation
+        report_preview = f"# Research Report\n\n{report_text}"
         conversation_history.append({
             "role": "assistant",
             "content": report_preview

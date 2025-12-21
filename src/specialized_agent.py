@@ -97,7 +97,14 @@ class SpecializedResearchAgent:
         Returns:
             System instructions string
         """
+        from src.date_utils import get_datetime_context_string
+        
+        # Get current date/time context
+        datetime_context = get_datetime_context_string()
+        
         instructions = f"""You are a specialized research analyst focusing on {subject.name} for {ticker}.
+
+{datetime_context}
 
 Your specific research task: {subject.description}
 
