@@ -59,6 +59,7 @@ class StockResearchAgent:
         self.current_ticker: Optional[str] = None
         self.current_trade_type: Optional[str] = None
         self.current_report_id: Optional[str] = None
+        self.last_report_text: Optional[str] = None
         self.research_orchestrator = ResearchOrchestrator(api_key=self.api_key)
         self.synthesis_agent = SynthesisAgent(api_key=self.api_key)
         self.report_storage = ReportStorage()
@@ -109,6 +110,9 @@ class StockResearchAgent:
                 # Generate report (this is synchronous but called from async function - OK)
                 report_text = self.generate_report(context=context_str)
                 report_id = self.current_report_id
+                
+                # Store report text for Flask session access
+                self.last_report_text = report_text
 
                 return f"Report generated successfully! Report ID: {report_id[:8] if report_id else 'N/A'}...\n\nThe comprehensive research report has been created. You can inform the user that the report is ready."
             except Exception as e:
