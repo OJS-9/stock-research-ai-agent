@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import Icon from '../components/Icon'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -19,6 +20,41 @@ const proof = [
 
 export default function Landing() {
   const { isMobile } = useBreakpoint()
+  const [email, setEmail] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
+
+  async function handleWaitlistSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.ok === false) {
+        setError(data.error || 'Something went wrong. Please try again.')
+      } else {
+        setShowModal(true)
+        setEmail('')
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function scrollToWaitlist() {
+    document.getElementById('waitlist-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    const input = document.getElementById('waitlist-email') as HTMLInputElement | null
+    setTimeout(() => input?.focus(), 400)
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#0c0a09', color: '#fafaf9', fontFamily: 'Inter, Heebo, sans-serif', overflowX: 'hidden' }}>
       {/* NAV */}
@@ -58,9 +94,13 @@ export default function Landing() {
             <Link to="/sign-in" style={{ background: 'transparent', border: '1px solid #292524', color: '#a8a29e', fontSize: 13, fontWeight: 500, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', display: 'inline-block' }}>
               Sign in
             </Link>
-            <Link to="/sign-up" style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, textDecoration: 'none', display: 'inline-block', whiteSpace: 'nowrap' }}>
-              {isMobile ? 'Get started' : 'Get started free'}
-            </Link>
+            <button
+              type="button"
+              onClick={scrollToWaitlist}
+              style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              Join waitlist
+            </button>
           </div>
         </div>
       </nav>
@@ -79,24 +119,39 @@ export default function Landing() {
         <p style={{ fontSize: isMobile ? 15 : 18, color: '#a8a29e', lineHeight: 1.7, maxWidth: 540, margin: '0 auto 40px' }}>
           Deep AI research reports on any stock or crypto in minutes. Portfolio tracking, watchlists, and price alerts built for people who want to understand companies.
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <Link
-            to="/sign-up"
-            style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 15, fontWeight: 700, padding: '14px 32px', borderRadius: 10, border: 'none', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', transition: 'opacity 0.15s' }}
-          >
-            <Icon name="auto_awesome" size={18} />
-            Start researching free
-          </Link>
-          <a
-            href="#how-it-works"
-            style={{ background: 'transparent', color: '#a8a29e', fontSize: 15, fontWeight: 500, padding: '14px 24px', borderRadius: 10, border: '1px solid #292524', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
-          >
-            <Icon name="play_circle" size={18} />
-            See how it works
-          </a>
-        </div>
+        <form
+          id="waitlist-form"
+          onSubmit={handleWaitlistSubmit}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, maxWidth: 480, margin: '0 auto' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, width: '100%', flexDirection: isMobile ? 'column' : 'row' }}>
+            <input
+              id="waitlist-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@email.com"
+              disabled={submitting}
+              onFocus={(e) => { e.currentTarget.style.borderColor = '#22c55e' }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = '#292524' }}
+              style={{ flex: 1, background: '#1c1917', border: '1px solid #292524', color: '#fafaf9', fontSize: 15, padding: '14px 16px', borderRadius: 10, outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 15, fontWeight: 700, padding: '14px 28px', borderRadius: 10, border: 'none', cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, whiteSpace: 'nowrap', opacity: submitting ? 0.7 : 1 }}
+            >
+              <Icon name="auto_awesome" size={18} />
+              {submitting ? 'Joining...' : 'Join the waitlist'}
+            </button>
+          </div>
+          {error && (
+            <p style={{ fontSize: 13, color: '#ef4444', margin: 0, alignSelf: 'flex-start' }}>{error}</p>
+          )}
+        </form>
         <p style={{ fontSize: 12.5, color: '#a8a29e', marginTop: 16 }}>
-          No credit card required &nbsp;&middot;&nbsp; Free tier available
+          Early access &nbsp;&middot;&nbsp; We'll email you when your spot opens
         </p>
       </section>
 
@@ -225,15 +280,16 @@ export default function Landing() {
       {/* CTA */}
       <section style={{ padding: isMobile ? '64px 20px' : '100px 64px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, rgba(34,197,94,0.05) 0%, transparent 65%)', pointerEvents: 'none' }} />
-        <h2 style={{ fontFamily: 'Nunito, "Secular One", Heebo, sans-serif', fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: '-0.04em', marginBottom: 16 }}>Start researching smarter today</h2>
-        <p style={{ fontSize: 16, color: '#a8a29e', marginBottom: 36 }}>Free tier available. No credit card required.</p>
-        <Link
-          to="/sign-up"
-          style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 15, fontWeight: 700, padding: '14px 32px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}
+        <h2 style={{ fontFamily: 'Nunito, "Secular One", Heebo, sans-serif', fontSize: isMobile ? 28 : 44, fontWeight: 800, letterSpacing: '-0.04em', marginBottom: 16 }}>Be first in line for early access</h2>
+        <p style={{ fontSize: 16, color: '#a8a29e', marginBottom: 36 }}>Join the waitlist. We'll email you when your spot opens.</p>
+        <button
+          type="button"
+          onClick={scrollToWaitlist}
+          style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 15, fontWeight: 700, padding: '14px 32px', borderRadius: 10, display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', cursor: 'pointer' }}
         >
           <Icon name="auto_awesome" size={18} />
-          Get started free
-        </Link>
+          Join the waitlist
+        </button>
       </section>
 
       {/* FOOTER */}
@@ -248,6 +304,37 @@ export default function Landing() {
         </div>
         <span style={{ fontSize: 12, color: '#a8a29e' }}>&copy; 2026 StockPro</span>
       </footer>
+
+      {showModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowModal(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(12,10,9,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 20 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: '#1c1917', border: '1px solid #292524', borderRadius: 18, padding: isMobile ? 28 : 36, maxWidth: 440, width: '100%', textAlign: 'center', boxShadow: '0 40px 80px rgba(0,0,0,0.6)' }}
+          >
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <Icon name="check" size={28} />
+            </div>
+            <h3 style={{ fontFamily: 'Nunito, "Secular One", Heebo, sans-serif', fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', margin: '0 0 10px' }}>
+              You're on the list
+            </h3>
+            <p style={{ fontSize: 14.5, color: '#a8a29e', lineHeight: 1.6, margin: '0 0 24px' }}>
+              Thanks for joining the StockPro waitlist. We'll email you the moment your spot opens — usually within a couple of weeks.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              style={{ background: '#d6d3d1', color: '#0c0a09', fontSize: 14, fontWeight: 600, padding: '12px 28px', borderRadius: 10, border: 'none', cursor: 'pointer' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

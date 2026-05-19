@@ -700,6 +700,19 @@ def waitlist_thanks():
     return render_template("waitlist_thanks.html")
 
 
+@app.route("/api/waitlist", methods=["POST"])
+@limiter.limit("30 per minute", key_func=get_remote_address)
+def api_waitlist():
+    """JSON waitlist signup for the React SPA. Always returns ok:true on a
+    valid email even if ConvertKit is down (failures are logged upstream)."""
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip()
+    if not email or not _WAITLIST_EMAIL_RE.match(email):
+        return jsonify({"ok": False, "error": "Please enter a valid email address."}), 400
+    _subscribe_waitlist_convertkit(email)
+    return jsonify({"ok": True})
+
+
 @app.route("/login")
 def login():
     """Compatibility redirect for legacy /login links."""

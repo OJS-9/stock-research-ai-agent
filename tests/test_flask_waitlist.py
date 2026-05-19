@@ -87,6 +87,46 @@ class TestWaitlistJoin:
         assert "/waitlist/thanks" in (resp.headers.get("Location") or "")
         mock_post.assert_not_called()
 
+    def test_api_waitlist_valid_email(self, api_client, monkeypatch):
+        monkeypatch.delenv("CONVERTKIT_API_KEY", raising=False)
+        monkeypatch.delenv("CONVERTKIT_FORM_ID", raising=False)
+        resp = api_client.post(
+            "/api/waitlist",
+            json={"email": "spa@example.com"},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json() == {"ok": True}
+
+    def test_api_waitlist_invalid_email(self, api_client):
+        resp = api_client.post(
+            "/api/waitlist",
+            json={"email": "not-an-email"},
+        )
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["ok"] is False
+        assert "valid email" in body["error"].lower()
+
+    def test_api_waitlist_missing_email(self, api_client):
+        resp = api_client.post("/api/waitlist", json={})
+        assert resp.status_code == 400
+        assert resp.get_json()["ok"] is False
+
+    def test_api_waitlist_calls_convertkit(self, api_client, monkeypatch):
+        monkeypatch.setenv("CONVERTKIT_API_KEY", "ck-test-key")
+        monkeypatch.setenv("CONVERTKIT_FORM_ID", "9264674")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '{"subscription":{}}'
+        with patch("app.requests.post", return_value=mock_resp) as mock_post:
+            resp = api_client.post(
+                "/api/waitlist",
+                json={"email": "ck@example.com"},
+            )
+        assert resp.status_code == 200
+        assert resp.get_json() == {"ok": True}
+        mock_post.assert_called_once()
+
     def test_convertkit_error_still_shows_success(self, api_client, monkeypatch):
         monkeypatch.setenv("CONVERTKIT_API_KEY", "ck-test-key")
         monkeypatch.setenv("CONVERTKIT_FORM_ID", "111")

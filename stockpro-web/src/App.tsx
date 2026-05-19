@@ -8,12 +8,13 @@ import { useApiClient } from './api/client'
 // Eager: small pages needed immediately
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
-import SignUp from './pages/SignUp'
 import Terms from './pages/legal/Terms'
 import Privacy from './pages/legal/Privacy'
 import Refund from './pages/legal/Refund'
 import About from './pages/About'
 import Press from './pages/Press'
+import Waitlist from './pages/Waitlist'
+import WaitlistThanks from './pages/WaitlistThanks'
 
 // Lazy: all authenticated pages
 const Home = lazy(() => import('./pages/Home'))
@@ -172,7 +173,8 @@ export default function App() {
 
       {/* Auth pages */}
       <Route path="/sign-in/*" element={<SignIn />} />
-      <Route path="/sign-up/*" element={<SignUp />} />
+      {/* Public signup gated behind waitlist; direct hits bounce to Landing. */}
+      <Route path="/sign-up/*" element={<Navigate to="/" replace />} />
 
       {/* Authenticated app pages */}
       <Route
@@ -359,6 +361,10 @@ export default function App() {
           </>
         }
       />
+
+      {/* Public waitlist flow */}
+      <Route path="/waitlist" element={<Waitlist />} />
+      <Route path="/waitlist/thanks" element={<WaitlistThanks />} />
 
       {/* Public authority pages */}
       <Route path="/about" element={<About />} />
