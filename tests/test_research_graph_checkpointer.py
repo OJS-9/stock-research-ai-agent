@@ -20,8 +20,16 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-# quality_gate_node drops outputs shorter than QUALITY_GATE_MIN_OUTPUT_CHARS (default 200)
-_GOOD_TEXT = "x" * 200
+# quality_gate_node drops outputs that are too short, contain no numeric data
+# points, or never reference the ticker. A "good" section must clear all three:
+# >= QUALITY_GATE_MIN_OUTPUT_CHARS (default 200), at least one number/percentage,
+# and a mention of the ticker. Tests use AAPL (default) and NVDA, so name both.
+_GOOD_TEXT = (
+    "AAPL and NVDA both posted strong results this quarter, with revenue up 12.5% "
+    "year over year and operating margins near 30%. Analysts model roughly 8% growth "
+    "for the next 4 quarters, citing resilient demand and a price target around 250. "
+    "Free cash flow exceeded 20 billion, supporting continued buybacks and dividends."
+)
 
 
 def test_graph_compiled_without_checkpointer():
