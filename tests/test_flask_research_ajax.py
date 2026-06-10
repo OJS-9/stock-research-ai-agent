@@ -174,6 +174,70 @@ def test_start_generation_returns_success_and_schedules_thread(api_client):
     mock_thread.start.assert_called_once()
 
 
+def test_start_generation_reprimes_ticker_from_session_when_agent_fresh(api_client):
+    """Cross-worker case (#116): the agent has no in-memory ticker, but the
+    Flask cookie carries it from popup_start. start_generation must restore it
+    and proceed instead of silently no-opping."""
+    import app as app_module
+
+    # Fresh agent on a different worker — no primed ticker/trade_type.
+    mock_agent = MagicMock()
+    mock_agent.current_ticker = None
+    mock_agent.current_trade_type = None
+    mock_thread = MagicMock()
+
+    with patch.object(app_module, "_session_hits_report_quota", return_value=False):
+        with patch.object(app_module, "initialize_session", return_value=mock_agent):
+            with patch.object(app_module, "get_or_create_session_id", return_value="sid-reprime"):
+                with patch("spend_budget.get_spend_budget_usd", return_value=2.5):
+                    with patch.object(app_module.threading, "Thread", return_value=mock_thread):
+                        with api_client.session_transaction() as sess:
+                            sess["user_id"] = "u1"
+                            sess["username"] = "nu"
+                            sess["current_ticker"] = "TEVA.TA"
+                            sess["current_trade_type"] = "Investment"
+                        resp = api_client.post(
+                            "/start_generation",
+                            json={"questions": ["Q?"], "answers": ["A"]},
+                            content_type="application/json",
+                        )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True}
+    # Agent was re-primed from the cookie, so generation can run.
+    assert mock_agent.current_ticker == "TEVA.TA"
+    assert mock_agent.current_trade_type == "Investment"
+    mock_thread.start.assert_called_once()
+
+
+def test_start_generation_400_when_no_active_session_anywhere(api_client):
+    """If neither the in-memory agent nor the cookie has a ticker, fail loudly
+    (400) rather than marking the job 'ready' with no report (#116)."""
+    import app as app_module
+
+    mock_agent = MagicMock()
+    mock_agent.current_ticker = None
+    mock_agent.current_trade_type = None
+    mock_thread = MagicMock()
+
+    with patch.object(app_module, "_session_hits_report_quota", return_value=False):
+        with patch.object(app_module, "initialize_session", return_value=mock_agent):
+            with patch.object(app_module, "get_or_create_session_id", return_value="sid-none"):
+                with patch.object(app_module.threading, "Thread", return_value=mock_thread):
+                    with api_client.session_transaction() as sess:
+                        sess["user_id"] = "u1"
+                        sess["username"] = "nu"
+                    resp = api_client.post(
+                        "/start_generation",
+                        json={"questions": ["Q?"], "answers": ["A"]},
+                        content_type="application/json",
+                    )
+
+    assert resp.status_code == 400
+    assert "error" in resp.get_json()
+    mock_thread.start.assert_not_called()
+
+
 class TestPositionCheckApi:
     def test_returns_positions_for_authenticated_user(self, api_client):
         import app as app_module

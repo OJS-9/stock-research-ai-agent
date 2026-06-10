@@ -1197,6 +1197,26 @@ def start_generation():
     agent.user_id = session.get("user_id")
     agent.username = session.get("username")
 
+    # Re-prime the agent's ticker/trade_type from the Flask session cookie when
+    # this worker's in-memory agent is fresh. popup_start runs start_research on
+    # whichever gunicorn worker served it; start_generation can land on a
+    # different worker whose agent_sessions has no primed agent (issue #116).
+    # The signed cookie is shared across workers, so it restores the state.
+    if not agent.current_ticker:
+        _ct = (session.get("current_ticker") or "").strip().upper()
+        _tt = (session.get("current_trade_type") or "").strip()
+        if _ct and _tt:
+            agent.current_ticker = _ct
+            agent.current_trade_type = _tt
+
+    # If the ticker still cannot be recovered, fail loudly instead of marking the
+    # job "ready" with no report (the silent no-op users hit under multi-worker).
+    if not agent.current_ticker or not agent.current_trade_type:
+        return (
+            jsonify({"error": "No active research session. Please restart the report."}),
+            400,
+        )
+
     # Set user language preference for Hebrew report generation
     try:
         from database import get_database_manager
