@@ -1,0 +1,1 @@
+import{a as e}from"./vendor-query-BShcpoGP.js";var t=e();function n({width:e=`100%`,height:n=20,borderRadius:r=8,className:i=``}){return(0,t.jsx)(`div`,{className:i,style:{width:e,height:n,borderRadius:r,background:`#1c1917`,animation:`pulse 1.5s ease-in-out infinite`}})}export{n as t};

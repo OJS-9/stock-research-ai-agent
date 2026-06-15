@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import AppNav from '../components/AppNav'
 import Icon from '../components/Icon'
+import TraderSummaryCard from '../components/TraderSummaryCard'
 import { useApiClient } from '../api/client'
 import { useLanguage } from '../LanguageContext'
 import { useBreakpoint } from '../hooks/useBreakpoint'
@@ -234,6 +235,14 @@ export default function ReportView() {
             </div>
           </div>
 
+          {/* TRADER'S SUMMARY (issue #134): at-a-glance card above the report body */}
+          <TraderSummaryCard
+            reportText={report.report_text}
+            symbol={report.symbol}
+            sections={sections}
+            isMobile={isMobile}
+          />
+
           {/* CONTENT */}
           <div ref={contentRef} style={{ padding: isMobile ? '24px 16px 60px' : '40px 48px 100px', maxWidth: 740 }}>
             {/* POST-REPORT CTA: bridge the user from reading to acting (issue #111) */}
@@ -265,12 +274,19 @@ export default function ReportView() {
               <div
                 style={{ fontSize: 14, color: 'rgba(250,250,249,0.8)', lineHeight: 1.85 }}
                 dangerouslySetInnerHTML={{ __html: (() => {
-                  // Simple markdown-to-HTML conversion for display
+                  // Simple markdown-to-HTML conversion for display.
+                  // Headings get sequential id="section-N" anchors (document order)
+                  // so the left TOC and the Trader's Summary quick-jump pills scroll.
+                  let headingIdx = 0
                   let html = report.report_text
                     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                    .replace(/^#{3}\s+(.+)$/gm, '<h3 style="font-family:Nunito,sans-serif;font-size:17px;font-weight:700;margin:28px 0 10px;color:#fafaf9">$1</h3>')
-                    .replace(/^#{2}\s+(.+)$/gm, '<h2 style="font-family:Nunito,sans-serif;font-size:20px;font-weight:700;margin:36px 0 14px;color:#fafaf9">$1</h2>')
-                    .replace(/^#{1}\s+(.+)$/gm, '<h1 style="font-family:Nunito,sans-serif;font-size:24px;font-weight:700;margin:40px 0 16px;color:#fafaf9">$1</h1>')
+                    .replace(/^(#{1,3})\s+(.+)$/gm, (_m: string, hashes: string, text: string) => {
+                      const id = `section-${headingIdx++}`
+                      const level = hashes.length
+                      if (level === 3) return `<h3 id="${id}" style="font-family:Nunito,sans-serif;font-size:17px;font-weight:700;margin:28px 0 10px;color:#fafaf9">${text}</h3>`
+                      if (level === 2) return `<h2 id="${id}" style="font-family:Nunito,sans-serif;font-size:20px;font-weight:700;margin:36px 0 14px;color:#fafaf9">${text}</h2>`
+                      return `<h1 id="${id}" style="font-family:Nunito,sans-serif;font-size:24px;font-weight:700;margin:40px 0 16px;color:#fafaf9">${text}</h1>`
+                    })
                     .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#fafaf9;font-weight:600">$1</strong>')
                     .replace(/\*(.+?)\*/g, '<em>$1</em>')
                     .replace(/^[-*]\s+(.+)$/gm, '<li style="margin-bottom:6px">$1</li>')
