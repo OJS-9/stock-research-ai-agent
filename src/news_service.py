@@ -14,11 +14,15 @@ logger = logging.getLogger(__name__)
 
 CACHE_TTL = 15 * 60  # 15 minutes
 
-BLOOMBERG_AGENT = "bloomberg_search_2026_02_23_a9u4p1tv_1184e640"
+# Bloomberg agent regenerated 2026-06-20: the old query-keyword agent had a
+# ~50% empty-result rate (a network-capture race); the regenerated agent takes a
+# full search URL and is ~90% reliable. See issue #146.
+BLOOMBERG_AGENT = "bloomberg_search_2026_06_20_regen"
 MORNINGSTAR_AGENT = "morningstar_search_2026_02_23_zicq0zdj_02869390"
 WSJ_AGENT = "wsj_article_template_2026_03_02_z7hhhvxe"
 WSJ_PIPELINE = "WSJcomUSBusiness"
 SEARCH_QUERY = "markets stocks economy finance"
+BLOOMBERG_SEARCH_URL = "https://www.bloomberg.com/search?query=" + urllib.parse.quote(SEARCH_QUERY)
 
 _cache = {
     "primary": {"articles": [], "fetched_at": None},
@@ -67,7 +71,7 @@ def _refresh_primary() -> None:
 
 def _do_refresh_primary(client) -> None:
     with ThreadPoolExecutor(max_workers=3) as pool:
-        f_bloomberg = pool.submit(client.run_agent, BLOOMBERG_AGENT, {"query": SEARCH_QUERY})
+        f_bloomberg = pool.submit(client.run_agent, BLOOMBERG_AGENT, {"url": BLOOMBERG_SEARCH_URL})
         f_morningstar = pool.submit(client.run_agent, MORNINGSTAR_AGENT, {"search_term": SEARCH_QUERY})
         f_wsj = pool.submit(client.run_agent, WSJ_AGENT, {"feed_name": WSJ_PIPELINE})
         bloomberg_results = f_bloomberg.result()

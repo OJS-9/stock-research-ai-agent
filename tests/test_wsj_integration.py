@@ -85,6 +85,21 @@ class TestRefreshPrimaryWsj:
             news_service.WSJ_AGENT, {"feed_name": news_service.WSJ_PIPELINE}
         )
 
+    def test_bloomberg_agent_called_with_search_url(self):
+        """Regenerated Bloomberg agent (issue #146) takes a full search URL, not a query keyword."""
+        mock_client = MagicMock()
+        mock_client.run_agent.side_effect = lambda agent, params: []
+
+        import nimble_client as nimble_module
+        with patch.object(nimble_module, 'NimbleClient', return_value=mock_client):
+            news_service._cache["primary"]["fetched_at"] = None
+            news_service._refresh_primary()
+
+        mock_client.run_agent.assert_any_call(
+            news_service.BLOOMBERG_AGENT, {"url": news_service.BLOOMBERG_SEARCH_URL}
+        )
+        assert news_service.BLOOMBERG_SEARCH_URL.startswith("https://www.bloomberg.com/search?query=")
+
     def test_wsj_articles_appear_in_cache_after_refresh(self):
         bloomberg_items = [self._make_article("Bloomberg 1")]
         morningstar_items = [self._make_article("Morningstar 1")]
