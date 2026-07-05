@@ -859,6 +859,8 @@ class DatabaseManager:
                         questions       JSONB,
                         subjects        JSONB,
                         failed_subjects JSONB,
+                        ticker          TEXT,
+                        trade_type      TEXT,
                         created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         expires_at      TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours')
@@ -870,6 +872,20 @@ class DatabaseManager:
                 cur.execute(
                     "CREATE INDEX IF NOT EXISTS idx_generation_status_expires ON generation_status (expires_at)"
                 )
+                # ticker/trade_type: let /api/reports/answer re-prime a fresh
+                # agent when it lands on a different gunicorn worker than
+                # /api/reports/generate (issue #165, same class as #116)
+                cur.execute("""
+                    DO $$ BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_schema = 'public' AND table_name = 'generation_status' AND column_name = 'ticker'
+                        ) THEN
+                            ALTER TABLE generation_status ADD COLUMN ticker TEXT;
+                            ALTER TABLE generation_status ADD COLUMN trade_type TEXT;
+                        END IF;
+                    END $$
+                """)
 
                 # SSE event queue: replaces the per-process `_sse_queues` dict
                 # so the producer thread on one worker and the SSE consumer on
@@ -3690,6 +3706,8 @@ class DatabaseManager:
         "questions",
         "subjects",
         "failed_subjects",
+        "ticker",
+        "trade_type",
     }
     _GEN_STATUS_JSON_FIELDS = {"questions", "subjects", "failed_subjects"}
 
@@ -3744,7 +3762,8 @@ class DatabaseManager:
                     """
                     SELECT session_id, user_id, status, report_id, progress, step,
                            step_code, done, total, partial, message, questions,
-                           subjects, failed_subjects, created_at, updated_at, expires_at
+                           subjects, failed_subjects, ticker, trade_type,
+                           created_at, updated_at, expires_at
                     FROM generation_status
                     WHERE session_id = %s
                     """,

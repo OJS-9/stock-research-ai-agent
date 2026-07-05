@@ -1406,7 +1406,10 @@ def report_status(session_id: str):
         return jsonify({"error": "forbidden"}), 403
 
     # Strip internal/timestamp columns and any None values for a clean response.
-    _hidden = {"user_id", "session_id", "created_at", "updated_at", "expires_at"}
+    _hidden = {
+        "user_id", "session_id", "created_at", "updated_at", "expires_at",
+        "ticker", "trade_type",
+    }
     return jsonify({k: v for k, v in row.items() if k not in _hidden and v is not None})
 
 
@@ -1501,12 +1504,16 @@ def api_reports_generate():
     ]
 
     if not no_questions:
+        # Persist ticker/trade_type so /api/reports/answer can re-prime the
+        # agent when it lands on a different gunicorn worker (issue #165).
         db.set_generation_status(
             session_id,
             user_id,
             status="needs_input",
             questions=pending,
             subjects=subjects,
+            ticker=ticker,
+            trade_type=trade_type,
         )
         return jsonify({
             "success": True,
@@ -1523,6 +1530,8 @@ def api_reports_generate():
         progress=5,
         step="Starting...",
         step_code="starting",
+        ticker=ticker,
+        trade_type=trade_type,
     )
 
     _start_report_generation_thread(session_id, agent, context_str, user_id, spend_budget_usd)
@@ -1671,6 +1680,43 @@ def api_reports_answer():
     context_str = "User context:\n" + "\n".join(lines) if lines else ""
 
     agent = initialize_session(session_id)
+
+    # Re-prime the agent from the generation_status row when this worker's
+    # in-memory agent is fresh. /api/reports/generate primes the agent on
+    # whichever gunicorn worker served it; this request can land on a different
+    # worker whose agent_sessions has no primed agent (issue #165, same class
+    # as #116). CLI callers use Bearer auth with no session cookie, so the DB
+    # row -- shared across workers -- is the only place to recover state from.
+    if not agent.current_ticker:
+        _ct = (row.get("ticker") or "").strip().upper()
+        _tt = (row.get("trade_type") or "").strip()
+        if _ct and _tt:
+            agent.current_ticker = _ct
+            agent.current_trade_type = _tt
+
+    # If the ticker still cannot be recovered, fail loudly instead of running
+    # a blank agent that reports "upstream data sources are down".
+    if not agent.current_ticker or not agent.current_trade_type:
+        return (
+            jsonify({"error": "No active research session. Please restart the report."}),
+            400,
+        )
+
+    if not agent.user_id:
+        agent.user_id = user_id
+    if not agent.username:
+        try:
+            _user_rec = db.get_user_by_id(user_id)
+            agent.username = _user_rec.get("username", user_id) if _user_rec else user_id
+        except Exception:
+            agent.username = user_id
+    try:
+        _user_rec2 = db.get_user_by_id(user_id)
+        agent.language = (
+            (_user_rec2.get("preferences") or {}).get("language", "en") if _user_rec2 else "en"
+        )
+    except Exception:
+        agent.language = "en"
 
     from spend_budget import get_spend_budget_usd
     spend_budget_usd = get_spend_budget_usd(agent.user_id)
